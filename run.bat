@@ -1,0 +1,1 @@
+.\tcc.exe .\main.c -Iinclude -L. -ltcc -run

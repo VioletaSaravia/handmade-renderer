@@ -1,0 +1,1 @@
+export i32 gamedata_size() { return sizeof(Data); }
