@@ -1,0 +1,5 @@
+LIBRARY game.dll
+
+EXPORTS
+init
+update
