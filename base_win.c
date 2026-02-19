@@ -170,3 +170,5 @@ void draw_text(char *text, i32 x, i32 y, col32 color) {
     G->draw_queue[G->draw_count++] =
         (DrawCmd){.t = DCT_TEXT, .color = color, .text = text, .x = x, .y = y};
 }
+
+void *image_read(char *path) { return LoadImage(NULL, path, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE); }

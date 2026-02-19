@@ -131,7 +131,10 @@ bool gui_toggle(i32 x, i32 y, bool *val);
 
 string file_read(char *path);
 i32    file_write(char *path, char *data);
-void   log(const char *fmt, ...);
+
+void *image_read(char *path);
+
+void log(const char *fmt, ...);
 
 // Input
 
