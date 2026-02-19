@@ -1,8 +1,7 @@
-
 #include "base_win.c"
 
 struct Data {
-    v2    camera_pos;
+    v2i   camera_pos;
     col32 fg, bg, text_light, text_dark;
     col32 solid_tiles[4];
     u8    tilemap[64][64];
@@ -37,15 +36,17 @@ export void init() {
 export void update(q8 dt) {
     data->btn_rect.x += 10 * dt;
 
-    for (q8 y = data->camera_pos.y;
-         y <= data->camera_pos.y + q8_from_i32(G->screen_size.h) / data->tile_size; y++) {
-        for (q8 x = data->camera_pos.x;
-             x <= data->camera_pos.x + q8_from_i32(G->screen_size.w) / data->tile_size; x++) {
+    i32 tiles_x = (G->screen_size.w + q8_to_i32(data->tile_size) - 1) / q8_to_i32(data->tile_size);
+    i32 tiles_y = (G->screen_size.h + q8_to_i32(data->tile_size) - 1) / q8_to_i32(data->tile_size);
 
-            u8 tile_id = data->tilemap[q8_to_i32(y) % 64][q8_to_i32(x) % 64];
-            draw_rect((rect){(x - data->camera_pos.x) * data->tile_size,
-                             (y - data->camera_pos.y) * data->tile_size, data->tile_size,
-                             data->tile_size},
+    for (i32 y = 0; y <= tiles_y; y++) {
+        for (i32 x = 0; x <= tiles_x; x++) {
+            i32 map_x = (data->camera_pos.x + x) % 64;
+            i32 map_y = (data->camera_pos.y + y) % 64;
+
+            u8 tile_id = data->tilemap[map_y][map_x];
+            draw_rect((rect){q8_mul(Q8(x), data->tile_size), q8_mul(Q8(y), data->tile_size),
+                             data->tile_size, data->tile_size},
                       data->solid_tiles[tile_id]);
         }
     }
