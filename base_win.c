@@ -32,6 +32,8 @@ typedef struct {
     i32 (*gamedata_size)();
     i32 last_gamedata_size;
 
+    bool            shutdown;
+    MSG             msg;
     LARGE_INTEGER   freq;
     FILETIME        last_write; // Never set/reset?
     WINDOWPLACEMENT prev_placement;
@@ -41,6 +43,7 @@ typedef struct {
     u32            *screen_buf;
     DrawCmd        *draw_queue;
     u32             draw_size, draw_count;
+    HWND            hwnd;
 } EngineData;
 
 #ifdef ENGINE_IMPL
@@ -172,3 +175,25 @@ void draw_text(char *text, i32 x, i32 y, col32 color) {
 }
 
 void *image_read(char *path) { return LoadImage(NULL, path, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE); }
+
+u8 *alloc(i32 size, Arena* a) {
+    if (a->used + size > a->cap) {
+        return NULL;
+        // i32 new_cap = a->cap == 0 ? 1024 : a->cap * 2;
+        // while (new_cap < a->used + size) new_cap *= 2;
+
+        // void *new_data = VirtualAlloc(NULL, new_cap, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+        // if (a->data) {
+        //     memcpy(new_data, a->data, a->used);
+        //     VirtualFree(a->data, 0, MEM_RELEASE);
+        // }
+        // a->data = new_data;
+        // a->cap  = new_cap;
+    }
+    u8 *result = (u8 *)a->data + a->used;
+    a->used += size;
+    return result;
+}
+
+u8* alloc_perm(i32 size) { return alloc(size, &G->ctx.perm); }
+u8* alloc_temp(i32 size) { return alloc(size, &G->ctx.temp); }

@@ -140,16 +140,28 @@ static f64 now_seconds() {
 
 i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, i32 nCmdShow) {
     // SetProcessDPIAware();
+    {
+        u64   max_memory = MB(8);
+        Arena perm       = {.data =
+                                VirtualAlloc(NULL, max_memory, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE),
+                            .used = 0,
+                            .cap  = max_memory};
 
-    G  = VirtualAlloc(NULL, sizeof(EngineData), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-    *G = (EngineData){
-        .prev_placement = {sizeof(WINDOWPLACEMENT)},
-        .screen_size    = {.w = 640, .h = 320},
-        .draw_queue =
-            VirtualAlloc(NULL, sizeof(DrawCmd) * 1024, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE),
-        .draw_size = 1024,
-    };
+        G  = (EngineData *)alloc(sizeof(EngineData), &perm);
+        *G = (EngineData){
+            .ctx =
+                {
+                    .perm = perm,
+                },
+            .prev_placement = {sizeof(WINDOWPLACEMENT)},
+            .screen_size    = {.w = 640, .h = 320},
+            .draw_size      = 1024,
+        };
 
+        G->ctx.temp = (Arena){.data = alloc_perm(KB(64)), .used = 0, .cap = KB(64)};
+    }
+
+    G->draw_queue = ALLOC_ARRAY(DrawCmd, 1024);
     QueryPerformanceFrequency(&G->freq);
     const f32 target_dt  = 1.0f / 60.0f; // 16.666 ms
     f32       dt         = target_dt;
@@ -157,10 +169,8 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
     if (!LoadGameDLL()) return 1;
 
-    G->game_memory =
-        (u8 *)VirtualAlloc(NULL, G->gamedata_size() * 2, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-    G->screen_buf = VirtualAlloc(NULL, G->screen_size.w * G->screen_size.h * sizeof(u32),
-                                 MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    G->game_memory = alloc_perm(G->gamedata_size());
+    G->screen_buf  = ALLOC_ARRAY(u32, G->screen_size.w * G->screen_size.h);
 
     char szAppName[] = APPNAME; // The name of this application
     char szTitle[]   = APPNAME; // The title bar text
@@ -183,26 +193,23 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     AdjustWindowRect(&wr, style, false);
 
     // create the browser
-    HWND hwnd = CreateWindow(szAppName, szTitle, style, CW_USEDEFAULT, CW_USEDEFAULT,
-                             wr.right - wr.left, wr.bottom - wr.top, 0, 0, hInstance, 0);
+    G->hwnd = CreateWindow(szAppName, szTitle, style, CW_USEDEFAULT, CW_USEDEFAULT,
+                           wr.right - wr.left, wr.bottom - wr.top, 0, 0, hInstance, 0);
 
-    if (!hwnd) return 0;
+    if (!G->hwnd) return 0;
 
     if (G->init) G->init();
 
-    bool shutdown = false;
-    MSG  msg;
-    draw_rect((rect){0, 0, G->screen_size.w, G->screen_size.h}, rgb(255, 255, 255));
-    while (!shutdown) {
+    while (!G->shutdown) {
         f64 frame_start = now_seconds();
 
-        while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
-            switch (msg.message) {
-            case WM_QUIT: shutdown = true; break;
+        while (PeekMessage(&G->msg, NULL, 0, 0, PM_REMOVE)) {
+            switch (G->msg.message) {
+            case WM_QUIT: G->shutdown = true; break;
 
             case WM_KEYDOWN:
-                switch (msg.wParam) {
-                case VK_ESCAPE: DestroyWindow(hwnd); break;
+                switch (G->msg.wParam) {
+                case VK_ESCAPE: DestroyWindow(G->hwnd); break;
 
                 case VK_F5: LoadGameDLL(); break;
                 case VK_F6:
@@ -210,7 +217,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                     if (G->init) G->init();
                     break;
 
-                case VK_F11: FullscreenWindow(hwnd); break;
+                case VK_F11: FullscreenWindow(G->hwnd); break;
 
                 default: break;
                 }
@@ -218,24 +225,24 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
             case WM_MOUSEMOVE:
                 G->mouse_pos = (v2){
-                    .x = Q8(msg.lParam & 0xFFFF),
-                    .y = Q8((msg.lParam >> 16) & 0xFFFF),
+                    .x = Q8(G->msg.lParam & 0xFFFF),
+                    .y = Q8((G->msg.lParam >> 16) & 0xFFFF),
                 };
                 break;
 
             default: break;
             }
 
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
+            TranslateMessage(&G->msg);
+            DispatchMessage(&G->msg);
         }
 
         G->update((q8)(dt * 256.0f));
 
         {
-            HDC  hdc = GetDC(hwnd);
+            HDC  hdc = GetDC(G->hwnd);
             RECT rc  = {0};
-            GetClientRect(hwnd, &rc);
+            GetClientRect(G->hwnd, &rc);
 
             i32 client_w = rc.right - rc.left;
             i32 client_h = rc.bottom - rc.top;
@@ -328,7 +335,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             DeleteObject(mem_bmp);
             DeleteDC(mem_dc);
 
-            ReleaseDC(hwnd, hdc);
+            ReleaseDC(G->hwnd, hdc);
             G->draw_count = 0;
         }
 
@@ -340,9 +347,10 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             if (sleep_ms > 0) Sleep(sleep_ms);
         }
 
-        dt = now_seconds() - frame_start;
+        G->ctx.temp.used = 0;
+        dt               = now_seconds() - frame_start;
     }
 
     if (G->quit) G->quit();
-    return msg.wParam;
+    return G->msg.wParam;
 }

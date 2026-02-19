@@ -2,6 +2,10 @@
 
 #include "windows.h"
 
+#define KB(n) ((n) * 1024)
+#define MB(n) (KB(n) * 1024)
+#define GB(n) (MB(n) * 1024)
+
 #define export __declspec(dllexport)
 #define import __declspec(dllimport)
 
@@ -90,9 +94,11 @@ typedef struct {
 
 // Data
 
-u8 *alloc(i32 size);
-#define ALLOC(type) (type *)alloc(sizeof(type))
-#define ALLOC_ARRAY(type, count) (type *)alloc(sizeof(type) * (count))
+u8 *alloc(i32 size, Arena *a);
+u8 *alloc_perm(i32 size);
+u8 *alloc_temp(i32 size);
+#define ALLOC(type) (type *)alloc_perm(sizeof(type))
+#define ALLOC_ARRAY(type, count) (type *)alloc_perm(sizeof(type) * (count))
 
 #define STR(str) (string){.text = str, .len = sizeof(str) - 1}
 
