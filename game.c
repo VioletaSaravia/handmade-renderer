@@ -36,11 +36,8 @@ export void init() {
 export void update(q8 dt) {
     data->btn_rect.x += 10 * dt;
 
-    i32 tiles_x = (G->screen_size.w + q8_to_i32(data->tile_size) - 1) / q8_to_i32(data->tile_size);
-    i32 tiles_y = (G->screen_size.h + q8_to_i32(data->tile_size) - 1) / q8_to_i32(data->tile_size);
-
-    for (i32 y = 0; y <= tiles_y; y++) {
-        for (i32 x = 0; x <= tiles_x; x++) {
+    for (i32 y = 0; y < G->screen_size.h / q8_to_i32(data->tile_size); y++) {
+        for (i32 x = 0; x < G->screen_size.w / q8_to_i32(data->tile_size); x++) {
             i32 map_x = (data->camera_pos.x + x) % 64;
             i32 map_y = (data->camera_pos.y + y) % 64;
 
