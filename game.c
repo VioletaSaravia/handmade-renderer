@@ -2,11 +2,11 @@
 #include "base_win.c"
 
 struct Data {
-    v2i   camera_pos;
+    v2    camera_pos;
     col32 fg, bg, text_light, text_dark;
     col32 solid_tiles[4];
     u8    tilemap[64][64];
-    i32   tile_size;
+    q8    tile_size;
     rect  btn_rect;
 };
 
@@ -23,8 +23,8 @@ export void init() {
                 rgb(255, 255, 0),
                 rgb(0, 0, 255),
             },
-        .tile_size = 32,
-        .btn_rect  = (rect){8, 8, 59, 19},
+        .tile_size = Q8(32),
+        .btn_rect  = (rect){Q8(8), Q8(8), Q8(59), Q8(19)},
     };
 
     for (i32 y = 0; y < 64; y++) {
@@ -34,12 +34,15 @@ export void init() {
     }
 }
 
-export void update(f32 dt) {
-    for (i32 y = data->camera_pos.y; y < data->camera_pos.y + G->screen_size.h / data->tile_size;
-         y++) {
-        for (i32 x = data->camera_pos.x;
-             x < data->camera_pos.x + G->screen_size.w / data->tile_size; x++) {
-            u8 tile_id = data->tilemap[y % 64][x % 64];
+export void update(q8 dt) {
+    data->btn_rect.x += 10 * dt;
+
+    for (q8 y = data->camera_pos.y;
+         y <= data->camera_pos.y + q8_from_i32(G->screen_size.h) / data->tile_size; y++) {
+        for (q8 x = data->camera_pos.x;
+             x <= data->camera_pos.x + q8_from_i32(G->screen_size.w) / data->tile_size; x++) {
+
+            u8 tile_id = data->tilemap[q8_to_i32(y) % 64][q8_to_i32(x) % 64];
             draw_rect((rect){(x - data->camera_pos.x) * data->tile_size,
                              (y - data->camera_pos.y) * data->tile_size, data->tile_size,
                              data->tile_size},

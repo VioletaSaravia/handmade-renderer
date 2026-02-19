@@ -29,6 +29,26 @@ typedef u32          col32;
 typedef long          i64;
 typedef unsigned long u64;
 
+// 1.23.8 fixed point
+typedef i32 q8;
+#define Q8(i32_val) ((q8)((i32_val) << 8))
+
+// q8  q8_from_f32(f32 val) { return val * 256.0f; }
+// f32 q8_to_f32(q8 val) { return (f32)val / 256.0f; }
+q8  q8_from_i32(i32 val) { return val << 8; }
+i32 q8_to_i32(q8 val) { return val >> 8; }
+
+q8 q8_floor(q8 val) { return val & ~0xFF; }
+q8 q8_ceil(q8 val) { return (val + 0xFF) & ~0xFF; }
+q8 q8_round(q8 val) { return (val + 0x80) & ~0xFF; }
+q8 q8_frac(q8 val) { return val & 0xFF; }
+
+q8 q8_mul(q8 a, q8 b) { return (q8)((a * b) >> 8); }
+q8 q8_div(q8 a, q8 b) { return (q8)((a << 8) / b); }
+
+// q8 q8_add_f32(q8 a, f32 b) { return a + q8_from_f32(b); }
+// q8 q8_sub_f32(q8 a, f32 b) { return a - q8_from_f32(b); }
+
 typedef float f32;
 typedef f32   rad;
 typedef f32   deg;
@@ -42,10 +62,10 @@ typedef struct {
 
 typedef union {
     struct {
-        f32 x, y;
+        q8 x, y;
     };
     struct {
-        f32 w, h;
+        q8 w, h;
     };
 } v2;
 
@@ -57,15 +77,6 @@ typedef union {
         i32 w, h;
     };
 } v2i;
-
-typedef union {
-    struct {
-        u32 x, y;
-    };
-    struct {
-        u32 w, h;
-    };
-} v2u;
 
 typedef struct {
     void *data;
@@ -88,10 +99,10 @@ u8 *alloc(i32 size);
 // Collision
 
 typedef struct {
-    i32 x, y, w, h;
+    q8 x, y, w, h;
 } rect;
 
-bool col_point_rect(v2i p, rect r) {
+bool col_point_rect(v2 p, rect r) {
     return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
 }
 

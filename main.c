@@ -139,13 +139,15 @@ static f64 now_seconds() {
 }
 
 i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, i32 nCmdShow) {
+    // SetProcessDPIAware();
+
     G  = VirtualAlloc(NULL, sizeof(EngineData), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
     *G = (EngineData){
         .prev_placement = {sizeof(WINDOWPLACEMENT)},
-        .screen_size    = {.w = 360, .h = 240},
+        .screen_size    = {.w = 640, .h = 320},
         .draw_queue =
-            VirtualAlloc(NULL, sizeof(DrawCmd) * 128, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE),
-        .draw_size = 128,
+            VirtualAlloc(NULL, sizeof(DrawCmd) * 1024, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE),
+        .draw_size = 1024,
     };
 
     QueryPerformanceFrequency(&G->freq);
@@ -173,14 +175,16 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
         .hCursor       = LoadCursor(NULL, IDC_ARROW),
     };
 
-    if (FALSE == RegisterClass(&wc)) return 0;
+    if (!RegisterClass(&wc)) return 0;
+
+    // Calculate window size that gives the desired client area
+    DWORD style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+    RECT  wr    = {0, 0, G->screen_size.w, G->screen_size.h};
+    AdjustWindowRect(&wr, style, false);
 
     // create the browser
-    HWND hwnd = CreateWindow(szAppName, szTitle, WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT,
-                             CW_USEDEFAULT,
-                             G->screen_size.w, // CW_USEDEFAULT,
-                             G->screen_size.h, // CW_USEDEFAULT,
-                             0, 0, hInstance, 0);
+    HWND hwnd = CreateWindow(szAppName, szTitle, style, CW_USEDEFAULT, CW_USEDEFAULT,
+                             wr.right - wr.left, wr.bottom - wr.top, 0, 0, hInstance, 0);
 
     if (!hwnd) return 0;
 
@@ -213,9 +217,9 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                 break;
 
             case WM_MOUSEMOVE:
-                G->mouse_pos = (v2i){
-                    .x = (i16)(msg.lParam & 0xFFFF),
-                    .y = (i16)((msg.lParam >> 16) & 0xFFFF),
+                G->mouse_pos = (v2){
+                    .x = Q8(msg.lParam & 0xFFFF),
+                    .y = Q8((msg.lParam >> 16) & 0xFFFF),
                 };
                 break;
 
@@ -226,62 +230,103 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             DispatchMessage(&msg);
         }
 
-        G->update(dt);
+        G->update((q8)(dt * 256.0f));
 
         {
-            // Rendering
-            PAINTSTRUCT ps  = {0};
-            HDC         hdc = GetDC(hwnd);
-            RECT        rc  = {0};
-
+            HDC  hdc = GetDC(hwnd);
+            RECT rc  = {0};
             GetClientRect(hwnd, &rc);
 
-            // i32 width  = rc.right;
-            // i32 height = rc.bottom;
+            i32 client_w = rc.right - rc.left;
+            i32 client_h = rc.bottom - rc.top;
 
-            // Draw to screen
-            BITMAPINFOHEADER bmi = {
-                .biSize        = sizeof(BITMAPINFOHEADER),
-                .biWidth       = G->screen_size.w,
-                .biHeight      = -G->screen_size.h, // Negative = top-down
-                .biPlanes      = 1,
-                .biBitCount    = 32,
-                .biCompression = BI_RGB,
-            };
-
-            SetDIBitsToDevice(hdc, 0, 0, G->screen_size.w, G->screen_size.h, 0, 0, 0,
-                              G->screen_size.h, G->screen_buf, (BITMAPINFO *)&bmi, DIB_RGB_COLORS);
+            HDC     mem_dc  = CreateCompatibleDC(hdc);
+            HBITMAP mem_bmp = CreateCompatibleBitmap(hdc, client_w, client_h);
+            HBITMAP old_bmp = SelectObject(mem_dc, mem_bmp);
 
             for (i32 i = 0; i < G->draw_count; i++) {
                 DrawCmd next = G->draw_queue[i];
 
                 switch (next.t) {
-                case DCT_TEXT: {
-                    RECT r = {
-                        .left   = next.x,
-                        .top    = next.y,
-                        .right  = next.x + G->screen_size.w,
-                        .bottom = next.y + G->screen_size.h,
-                    };
-                    SetTextColor(hdc, next.color);
-                    SetBkMode(hdc, TRANSPARENT);
-
-                    DrawText(hdc, next.text, -1, &r, DT_LEFT | DT_TOP);
-                    break;
-                }
-
                 case DCT_RECT: {
+                    next.r = (rect){
+                        .x = q8_to_i32(next.r.x),
+                        .y = q8_to_i32(next.r.y),
+                        .w = q8_to_i32(next.r.w),
+                        .h = q8_to_i32(next.r.h),
+                    };
                     for (i32 y_coord = next.r.y; y_coord < next.r.y + next.r.h; y_coord++) {
                         for (i32 x_coord = next.r.x; x_coord < next.r.x + next.r.w; x_coord++) {
-                            i32 coord = (y_coord % G->screen_size.h) * G->screen_size.w +
-                                        (x_coord % G->screen_size.w);
-                            G->screen_buf[coord] = next.color;
+                            if (x_coord >= 0 && x_coord < G->screen_size.w && y_coord >= 0 &&
+                                y_coord < G->screen_size.h) {
+                                i32 coord            = y_coord * G->screen_size.w + x_coord;
+                                G->screen_buf[coord] = next.color;
+                            }
                         }
                     }
                     break;
                 }
+                default: break;
                 }
             }
+
+            HDC              buf_dc  = CreateCompatibleDC(hdc);
+            BITMAPINFOHEADER buf_bmi = {
+                .biSize        = sizeof(BITMAPINFOHEADER),
+                .biWidth       = G->screen_size.w,
+                .biHeight      = -G->screen_size.h,
+                .biPlanes      = 1,
+                .biBitCount    = 32,
+                .biCompression = BI_RGB,
+            };
+            void   *buf_bits = NULL;
+            HBITMAP buf_bmp  = CreateDIBSection(buf_dc, (BITMAPINFO *)&buf_bmi, DIB_RGB_COLORS,
+                                                &buf_bits, NULL, 0);
+            HBITMAP buf_old  = SelectObject(buf_dc, buf_bmp);
+
+            memcpy(buf_bits, G->screen_buf, G->screen_size.w * G->screen_size.h * sizeof(u32));
+
+            for (i32 i = 0; i < G->draw_count; i++) {
+                DrawCmd next = G->draw_queue[i];
+                if (next.t == DCT_TEXT) {
+                    RECT r = {
+                        .left   = next.x,
+                        .top    = next.y,
+                        .right  = G->screen_size.w,
+                        .bottom = G->screen_size.h,
+                    };
+                    SetTextColor(buf_dc, next.color);
+                    SetBkMode(buf_dc, TRANSPARENT);
+                    DrawText(buf_dc, next.text, -1, &r, DT_LEFT | DT_TOP);
+                }
+            }
+
+            // Copy the result back into screen_buf
+            GdiFlush();
+            CopyMemory(G->screen_buf, buf_bits, G->screen_size.w * G->screen_size.h * sizeof(u32));
+
+            SelectObject(buf_dc, buf_old);
+            DeleteObject(buf_bmp);
+            DeleteDC(buf_dc);
+
+            BITMAPINFOHEADER bmi = {
+                .biSize        = sizeof(BITMAPINFOHEADER),
+                .biWidth       = G->screen_size.w,
+                .biHeight      = -G->screen_size.h,
+                .biPlanes      = 1,
+                .biBitCount    = 32,
+                .biCompression = BI_RGB,
+            };
+
+            StretchDIBits(mem_dc, 0, 0, client_w, client_h, 0, 0, G->screen_size.w,
+                          G->screen_size.h, G->screen_buf, (BITMAPINFO *)&bmi, DIB_RGB_COLORS,
+                          SRCCOPY);
+
+            BitBlt(hdc, 0, 0, client_w, client_h, mem_dc, 0, 0, SRCCOPY);
+
+            SelectObject(mem_dc, old_bmp);
+            DeleteObject(mem_bmp);
+            DeleteDC(mem_dc);
 
             ReleaseDC(hwnd, hdc);
             G->draw_count = 0;

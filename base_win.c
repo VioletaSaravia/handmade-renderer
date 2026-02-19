@@ -27,7 +27,7 @@ typedef struct {
     char      text_buf[256];
 
     void (*init)();
-    void (*update)(f32 dt);
+    void (*update)(q8 dt);
     void (*quit)();
     i32 (*gamedata_size)();
     i32 last_gamedata_size;
@@ -35,7 +35,7 @@ typedef struct {
     LARGE_INTEGER   freq;
     FILETIME        last_write; // Never set/reset?
     WINDOWPLACEMENT prev_placement;
-    v2i             mouse_pos;
+    v2              mouse_pos;
     KeyState        keys[K_COUNT];
     v2i             screen_size;
     u32            *screen_buf;
