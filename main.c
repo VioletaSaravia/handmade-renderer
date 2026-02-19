@@ -265,8 +265,8 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                     };
                     SetTextColor(hdc, next.color);
                     SetBkMode(hdc, TRANSPARENT);
+
                     DrawText(hdc, next.text, -1, &r, DT_LEFT | DT_TOP);
-                    // DrawText(hdc, next.text, -1, &r, DT_CENTER | DT_SINGLELINE | DT_VCENTER);
                     break;
                 }
 

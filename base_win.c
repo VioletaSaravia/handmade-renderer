@@ -8,13 +8,15 @@ typedef struct {
     DrawCmdType t;
     col32       color;
 
-    union { // text
-        char *text;
-        i32   x, y;
-    };
+    union {
+        struct { // text
+            char *text;
+            i32   x, y;
+        };
 
-    union { // rect
-        rect r;
+        struct { // rect
+            rect r;
+        };
     };
 } DrawCmd;
 
@@ -166,5 +168,5 @@ void draw_text(char *text, i32 x, i32 y, col32 color) {
     if (G->draw_count == G->draw_size) return;
 
     G->draw_queue[G->draw_count++] =
-        (DrawCmd){.t = DCT_TEXT, .text = text, .x = x, .y = y, .color = color};
+        (DrawCmd){.t = DCT_TEXT, .color = color, .text = text, .x = x, .y = y};
 }
