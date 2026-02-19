@@ -7,21 +7,25 @@ struct Data {
     col32 solid_tiles[4];
     u8    tilemap[64][64];
     i32   tile_size;
+    rect  btn_rect;
 };
 
 export void init() {
-    *data = (Data){.fg         = rgb(110, 124, 205),
-                   .bg         = rgb(51, 45, 116),
-                   .text_light = rgb(230, 240, 250),
-                   .text_dark  = rgb(20, 10, 10),
-                   .solid_tiles =
-                       {
-                           rgb(0, 255, 255),
-                           rgb(255, 0, 255),
-                           rgb(255, 255, 0),
-                           rgb(0, 0, 255),
-                       },
-                   .tile_size = 32};
+    *data = (Data){
+        .fg         = rgb(110, 124, 205),
+        .bg         = rgb(51, 45, 116),
+        .text_light = rgb(230, 240, 250),
+        .text_dark  = rgb(20, 10, 10),
+        .solid_tiles =
+            {
+                rgb(0, 255, 255),
+                rgb(255, 0, 255),
+                rgb(255, 255, 0),
+                rgb(0, 0, 255),
+            },
+        .tile_size = 32,
+        .btn_rect  = (rect){8, 8, 59, 19},
+    };
 
     for (i32 y = 0; y < 64; y++) {
         for (i32 x = 0; x < 64; x++) {
@@ -30,7 +34,7 @@ export void init() {
     }
 }
 
-export void update() {
+export void update(f32 dt) {
     for (i32 y = data->camera_pos.y; y < data->camera_pos.y + G->screen_size.h / data->tile_size;
          y++) {
         for (i32 x = data->camera_pos.x;
@@ -43,8 +47,8 @@ export void update() {
         }
     }
 
-    col32 btn_color = col_point_rect(G->mouse_pos, (rect){8, 8, 59, 19}) ? data->fg : data->bg;
-    draw_rect((rect){8, 8, 59, 19}, btn_color);
+    col32 btn_color = col_point_rect(G->mouse_pos, data->btn_rect) ? data->fg : data->bg;
+    draw_rect(data->btn_rect, btn_color);
     draw_text("Blabers!", 10, 10, data->text_light);
 }
 

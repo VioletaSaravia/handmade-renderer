@@ -102,15 +102,12 @@ static void FullscreenWindow(HWND hWnd) {
     DWORD dwStyle = GetWindowLong(hWnd, GWL_STYLE);
 
     if (dwStyle & WS_OVERLAPPEDWINDOW) {
-        // Store current window placement
         GetWindowPlacement(hWnd, &G->prev_placement);
 
-        // Remove window decorations and maximize
         SetWindowLong(hWnd, GWL_STYLE, dwStyle & ~WS_OVERLAPPEDWINDOW);
         SetWindowPos(hWnd, HWND_TOP, 0, 0, GetSystemMetrics(SM_CXSCREEN),
                      GetSystemMetrics(SM_CYSCREEN), SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
     } else {
-        // Restore previous window placement
         SetWindowLong(hWnd, GWL_STYLE, dwStyle | WS_OVERLAPPEDWINDOW);
         SetWindowPlacement(hWnd, &G->prev_placement);
         SetWindowPos(hWnd, NULL, 0, 0, 0, 0,
@@ -135,12 +132,26 @@ LRESULT CALLBACK WndProc(HWND hwnd, u32 message, WPARAM wParam, LPARAM lParam) {
 
 #define APPNAME "HELLO_WIN"
 
+static f64 now_seconds() {
+    LARGE_INTEGER t;
+    QueryPerformanceCounter(&t);
+    return (f64)t.QuadPart / (f64)G->freq.QuadPart;
+}
+
 i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, i32 nCmdShow) {
     G  = VirtualAlloc(NULL, sizeof(EngineData), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
     *G = (EngineData){
         .prev_placement = {sizeof(WINDOWPLACEMENT)},
         .screen_size    = {.w = 360, .h = 240},
+        .draw_queue =
+            VirtualAlloc(NULL, sizeof(DrawCmd) * 128, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE),
+        .draw_size = 128,
     };
+
+    QueryPerformanceFrequency(&G->freq);
+    const f32 target_dt  = 1.0f / 60.0f; // 16.666 ms
+    f32       dt         = target_dt;
+    f64       next_frame = now_seconds();
 
     if (!LoadGameDLL()) return 1;
 
@@ -179,6 +190,8 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     MSG  msg;
     draw_rect((rect){0, 0, G->screen_size.w, G->screen_size.h}, rgb(255, 255, 255));
     while (!shutdown) {
+        f64 frame_start = now_seconds();
+
         while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
             switch (msg.message) {
             case WM_QUIT: shutdown = true; break;
@@ -213,7 +226,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             DispatchMessage(&msg);
         }
 
-        G->update();
+        G->update(dt);
 
         {
             // Rendering
@@ -242,24 +255,47 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             for (i32 i = 0; i < G->draw_count; i++) {
                 DrawCmd next = G->draw_queue[i];
 
-                RECT r = {
-                    .left   = next.x,
-                    .top    = next.y,
-                    .right  = next.x + G->screen_size.w,
-                    .bottom = next.y + G->screen_size.h,
-                };
+                switch (next.t) {
+                case DCT_TEXT: {
+                    RECT r = {
+                        .left   = next.x,
+                        .top    = next.y,
+                        .right  = next.x + G->screen_size.w,
+                        .bottom = next.y + G->screen_size.h,
+                    };
+                    SetTextColor(hdc, next.color);
+                    SetBkMode(hdc, TRANSPARENT);
+                    DrawText(hdc, next.text, -1, &r, DT_LEFT | DT_TOP);
+                    // DrawText(hdc, next.text, -1, &r, DT_CENTER | DT_SINGLELINE | DT_VCENTER);
+                    break;
+                }
 
-                SetTextColor(hdc, next.color);
-                SetBkMode(hdc, TRANSPARENT);
-                DrawText(hdc, next.text, -1, &r, DT_LEFT | DT_TOP);
-                // DrawText(hdc, next.text, -1, &r, DT_CENTER | DT_SINGLELINE | DT_VCENTER);
+                case DCT_RECT: {
+                    for (i32 y_coord = next.r.y; y_coord < next.r.y + next.r.h; y_coord++) {
+                        for (i32 x_coord = next.r.x; x_coord < next.r.x + next.r.w; x_coord++) {
+                            i32 coord = (y_coord % G->screen_size.h) * G->screen_size.w +
+                                        (x_coord % G->screen_size.w);
+                            G->screen_buf[coord] = next.color;
+                        }
+                    }
+                    break;
+                }
+                }
             }
 
             ReleaseDC(hwnd, hdc);
             G->draw_count = 0;
         }
 
-        Sleep(16);
+        next_frame += target_dt;
+
+        f64 remaining = next_frame - now_seconds();
+        if (remaining > 0.0) {
+            DWORD sleep_ms = (DWORD)(remaining * 1000.0);
+            if (sleep_ms > 0) Sleep(sleep_ms);
+        }
+
+        dt = now_seconds() - frame_start;
     }
 
     if (G->quit) G->quit();

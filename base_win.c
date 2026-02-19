@@ -2,13 +2,21 @@
 
 #include "base.h"
 
-typedef struct {
-    char *text;
-    i32   x, y;
-    col32 color;
-} DrawCmd;
+typedef enum { DCT_RECT, DCT_TEXT, DCT_COUNT } DrawCmdType;
 
-#define DRAW_QUEUE_MAX 64
+typedef struct {
+    DrawCmdType t;
+    col32       color;
+
+    union { // text
+        char *text;
+        i32   x, y;
+    };
+
+    union { // rect
+        rect r;
+    };
+} DrawCmd;
 
 typedef struct {
     u8       *game_memory;
@@ -17,19 +25,20 @@ typedef struct {
     char      text_buf[256];
 
     void (*init)();
-    void (*update)();
+    void (*update)(f32 dt);
     void (*quit)();
     i32 (*gamedata_size)();
     i32 last_gamedata_size;
 
+    LARGE_INTEGER   freq;
     FILETIME        last_write; // Never set/reset?
     WINDOWPLACEMENT prev_placement;
     v2i             mouse_pos;
     KeyState        keys[K_COUNT];
     v2i             screen_size;
     u32            *screen_buf;
-    DrawCmd         draw_queue[DRAW_QUEUE_MAX];
-    u32             draw_count;
+    DrawCmd        *draw_queue;
+    u32             draw_size, draw_count;
 } EngineData;
 
 #ifdef ENGINE_IMPL
@@ -39,12 +48,8 @@ import extern EngineData *G;
 #endif
 
 void draw_rect(rect r, col32 color) {
-    for (i32 y_coord = r.y; y_coord < r.y + r.h; y_coord++) {
-        for (i32 x_coord = r.x; x_coord < r.x + r.w; x_coord++) {
-            i32 coord            = y_coord * G->screen_size.w + x_coord;
-            G->screen_buf[coord] = color;
-        }
-    }
+    if (G->draw_count == G->draw_size) return;
+    G->draw_queue[G->draw_count++] = (DrawCmd){.t = DCT_RECT, .r = r, .color = color};
 }
 
 void draw_rect_outline(rect r, col32 color) {
@@ -158,7 +163,8 @@ void draw_line(i32 x1, i32 y1, i32 x2, i32 y2, col32 color) {
 }
 
 void draw_text(char *text, i32 x, i32 y, col32 color) {
-    if (G->draw_count == DRAW_QUEUE_MAX) return;
+    if (G->draw_count == G->draw_size) return;
 
-    G->draw_queue[G->draw_count++] = (DrawCmd){.text = text, .x = x, .y = y, .color = color};
+    G->draw_queue[G->draw_count++] =
+        (DrawCmd){.t = DCT_TEXT, .text = text, .x = x, .y = y, .color = color};
 }

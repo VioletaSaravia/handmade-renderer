@@ -15,23 +15,25 @@ import extern Data *data;
 
 typedef char          i8;
 typedef unsigned char u8;
+typedef u8 bool;
+#define false 0
+#define true 1
 
 typedef short          i16;
 typedef unsigned short u16;
 
 typedef int          i32;
 typedef unsigned int u32;
+typedef u32          col32;
 
 typedef long          i64;
 typedef unsigned long u64;
 
-typedef char bool;
-#define false 0
-#define true 1
-
 typedef float f32;
 typedef f32   rad;
 typedef f32   deg;
+
+typedef double f64;
 
 typedef struct {
     u8 *text;
@@ -64,8 +66,6 @@ typedef union {
         u32 w, h;
     };
 } v2u;
-
-typedef u32 col32;
 
 typedef struct {
     void *data;
