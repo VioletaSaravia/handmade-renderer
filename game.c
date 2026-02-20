@@ -91,6 +91,7 @@ export void update(q8 dt) {
     static v3 obj_rotated[8];
     for (i32 i = 0; i < data->obj_count; i++) {
         // Move vertex to local space (relative to cube center)
+        // TODO(violeta): Center cube data instead
         v3 local = {
             data->obj[i].x - center.x,
             data->obj[i].y - center.y,
