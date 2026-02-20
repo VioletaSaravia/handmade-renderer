@@ -430,3 +430,49 @@ static void CenterWindow(HWND hWnd) {
 
     SetWindowPos(hWnd, NULL, xpos, ypos, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
 }
+
+#define THREAD_COUNT 8
+
+static inline long read_acquire(volatile long *src) {
+    long val = *src;
+#if defined(__x86_64__) || defined(__i386__)
+    __asm__ volatile("" ::: "memory"); // compiler barrier (x86 has strong ordering)
+#elif defined(__aarch64__)
+    __asm__ volatile("dmb ishld" ::: "memory"); // data memory barrier (acquire)
+#elif defined(__arm__)
+    __asm__ volatile("dmb ish" ::: "memory");
+#else
+    __asm__ volatile("" ::: "memory"); // fallback: compiler barrier only
+#endif
+    return val;
+}
+
+static inline void _mm_pause(void) {
+#if defined(__x86_64__) || defined(__i386__)
+    __asm__ volatile("pause");
+#elif defined(__aarch64__)
+    __asm__ volatile("yield");
+#elif defined(__arm__)
+    __asm__ volatile("yield");
+#else
+    // no-op
+#endif
+}
+
+void thread_barrier(void) {
+    static volatile i64 barrier_count      = 0;
+    static volatile i64 barrier_generation = 0;
+    static i32          barrier_total      = THREAD_COUNT;
+
+    i64 gen       = read_acquire(&barrier_generation);
+    i64 new_count = InterlockedIncrement(&barrier_count);
+
+    if (new_count == barrier_total) {
+        InterlockedExchange(&barrier_count, 0);
+        InterlockedIncrement(&barrier_generation);
+    } else {
+        while (read_acquire(&barrier_generation) == gen) {
+            YieldProcessor();
+        }
+    }
+}
