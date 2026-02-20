@@ -263,9 +263,8 @@ static f64 now_seconds() {
 }
 
 // TCC needs these declared as regular C functions with __stdcall
-__attribute__((dllimport)) BOOL __stdcall
-K32GetProcessMemoryInfo(HANDLE, MY_PROCESS_MEMORY_COUNTERS_EX *, DWORD);
-__attribute__((dllimport)) BOOL __stdcall GlobalMemoryStatusEx(MEMORYSTATUSEX *);
+import BOOL __stdcall K32GetProcessMemoryInfo(HANDLE, MY_PROCESS_MEMORY_COUNTERS_EX *, DWORD);
+import BOOL __stdcall GlobalMemoryStatusEx(MEMORYSTATUSEX *);
 
 #undef EXPORT
 #define EXPORT extern "C" __declspec(dllexport)
@@ -444,8 +443,8 @@ static void CenterWindow(HWND hWnd) {
 
 #define THREAD_COUNT 8
 
-static inline long read_acquire(volatile long *src) {
-    long val = *src;
+static inline i64 read_acquire(volatile i64 *src) {
+    i64 val = *src;
 #if defined(__x86_64__) || defined(__i386__)
     __asm__ volatile("" ::: "memory"); // compiler barrier (x86 has strong ordering)
 #elif defined(__aarch64__)
