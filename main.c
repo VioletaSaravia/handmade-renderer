@@ -4,7 +4,7 @@
 
 void        tcc_err(void *opaque, const char *msg) { printf(msg); }
 static bool load_dll() {
-    block_begin(2, "load_dll", __FILE__, __LINE__, 0);
+    BLOCK_BEGIN("load_dll");
 
     GetLastWriteTime("game.c", &G->last_write);
 
@@ -58,7 +58,7 @@ static bool load_dll() {
     void (*new_quit)() = tcc_get_symbol(G->tcc, "quit");
     if (new_quit) G->quit = new_quit;
 
-    block_end();
+    BLOCK_END();
     return true;
 }
 
@@ -115,7 +115,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     G->metrics     = metrics_init();
     G->system_info = systeminfo_init();
     G->profiler    = profiler_new("Handmade Renderer");
-    block_begin(1, "Initialization", __FILE__, __LINE__, 0);
+    BLOCK_BEGIN("init");
     G->draw_queue = ALLOC_ARRAY(DrawCmd, 1024);
 
     QueryPerformanceFrequency(&G->freq);
@@ -123,10 +123,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     f32       dt         = target_dt;
     f64       next_frame = now_seconds();
 
-    if (!load_dll()) {
-        MessageBox(NULL, "Failed to load game!", "Error", MB_ICONERROR);
-        return 1;
-    }
+    if (!load_dll()) return 1;
 
     G->game_memory = alloc_perm(G->gamedata_size());
     G->screen_buf  = ALLOC_ARRAY(u32, G->screen_size.w * G->screen_size.h);
@@ -136,7 +133,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
         .lpszClassName = G->game_info->name,
         .lpfnWndProc   = (WNDPROC)WndProc,
         .style         = CS_DBLCLKS | CS_VREDRAW | CS_HREDRAW,
-        .hbrBackground = NULL, //(HBRUSH)GetStockObject(BLACK_BRUSH),
+        .hbrBackground = NULL, // (HBRUSH)GetStockObject(BLACK_BRUSH),
         .hIcon         = LoadIcon(NULL, IDI_APPLICATION),
         .hCursor       = LoadCursor(NULL, IDC_ARROW),
     };
@@ -150,12 +147,10 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     G->hwnd =
         CreateWindow(G->game_info->name, G->game_info->name, style, CW_USEDEFAULT, CW_USEDEFAULT,
                      wr.right - wr.left, wr.bottom - wr.top, 0, 0, hInstance, 0);
-
     if (!G->hwnd) return 0;
 
     if (G->init) G->init();
-
-    block_end();
+    BLOCK_END();
 
     RepProfiler rep = repprofiler_new("game loop", 1000);
     while (!G->shutdown) {

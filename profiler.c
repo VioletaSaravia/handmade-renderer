@@ -190,10 +190,10 @@ void repprofiler_print(RepProfiler *p) {
 
 #ifndef DISABLE_PROFILER
 
-#define BLOCK_BEGIN(name) block_begin(__COUNTER__ + 1, name, __FILE__, __LINE__)
+#define BLOCK_BEGIN(name) block_begin(__COUNTER__ + 1, name, __FILE__, __LINE__, 0)
 #define BLOCK_END() block_end()
 #define PROFILE(name, code)                                 \
-    block_begin(__COUNTER__ + 1, name, __FILE__, __LINE__); \
+    block_begin(__COUNTER__ + 1, name, __FILE__, __LINE__, 0); \
     code;                                                   \
     block_end();
 
