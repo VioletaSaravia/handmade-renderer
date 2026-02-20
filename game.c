@@ -1,5 +1,10 @@
 #include "base_win.c"
 
+export Info game = {
+    .name    = "Handmade Renderer",
+    .version = "0.1.0",
+};
+
 struct Data {
     v2i   camera_pos;
     col32 fg, bg, text_light, text_dark;
@@ -26,9 +31,9 @@ export void init() {
         .tilemap_size = (v2i){64, 64},
     };
 
-    data->tilemap = alloc_perm(data->tilemap_size.y * sizeof(u8 *));
+    data->tilemap = ALLOC_ARRAY(u8 *, data->tilemap_size.y);
     for (i32 i = 0; i < data->tilemap_size.y; i++) {
-        data->tilemap[i] = alloc_perm(data->tilemap_size.x * sizeof(u8));
+        data->tilemap[i] = ALLOC_ARRAY(u8, data->tilemap_size.x);
     }
 
     for (i32 y = 0; y < data->tilemap_size.y; y++) {

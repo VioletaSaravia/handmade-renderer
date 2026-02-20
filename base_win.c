@@ -2,6 +2,7 @@
 #include <libtcc/libtcc.h>
 
 #include "base.h"
+#include "profiler.h"
 
 typedef enum { DCT_RECT, DCT_RECT_OUTLINE, DCT_TEXT, DCT_COUNT } DrawCmdType;
 
@@ -28,6 +29,7 @@ typedef struct {
     char      text_buf[256];
 
     void (*init)();
+    Info *game_info;
     void (*update)(q8 dt);
     void (*quit)();
     i32 (*gamedata_size)();
@@ -36,7 +38,7 @@ typedef struct {
     bool            shutdown;
     MSG             msg;
     LARGE_INTEGER   freq;
-    FILETIME        last_write; // Never set/reset?
+    FILETIME        last_write;
     WINDOWPLACEMENT prev_placement;
     v2              mouse_pos;
     KeyState        keys[K_COUNT];
@@ -45,6 +47,9 @@ typedef struct {
     DrawCmd        *draw_queue;
     u32             draw_size, draw_count;
     HWND            hwnd;
+    Metrics         metrics;
+    SystemInfo      system_info;
+    Profiler        profiler;
 } EngineData;
 
 #ifdef ENGINE_IMPL
@@ -109,7 +114,6 @@ f32 atan2f(f32 y, f32 x) {
     f32 z     = y / x;
     f32 abs_z = z < 0 ? -z : z;
 
-    // Polynomial approximation for atan in range [-1, 1]
     f32 angle = z / (1.0f + 0.28662f * abs_z * abs_z);
 
     if (x < 0.0f) {
@@ -175,17 +179,7 @@ void *image_read(char *path) { return LoadImage(NULL, path, IMAGE_BITMAP, 0, 0, 
 
 u8 *alloc(i32 size, Arena *a) {
     if (a->used + size > a->cap) {
-        return NULL;
-        // i32 new_cap = a->cap == 0 ? 1024 : a->cap * 2;
-        // while (new_cap < a->used + size) new_cap *= 2;
-
-        // void *new_data = VirtualAlloc(NULL, new_cap, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-        // if (a->data) {
-        //     memcpy(new_data, a->data, a->used);
-        //     VirtualFree(a->data, 0, MEM_RELEASE);
-        // }
-        // a->data = new_data;
-        // a->cap  = new_cap;
+        assert(false && "Out of memory!");
     }
     u8 *result = (u8 *)a->data + a->used;
     a->used += size;
@@ -202,7 +196,7 @@ char *string_format(Arena *a, char *fmt, ...) {
     va_list copy;
     va_copy(copy, args);
 
-    int needed = vsnprintf(NULL, 0, fmt, args);
+    i32 needed = vsnprintf(NULL, 0, fmt, args);
     va_end(args);
 
     char *result = alloc((size_t)needed + 1, a);
@@ -234,4 +228,161 @@ bool gui_toggle(char *name, q8 x, q8 y, bool *val) {
     bool pressed = G->keys[K_MOUSE_LEFT] == KS_JUST_PRESSED && col_point_rect(G->mouse_pos, r);
     if (pressed) *val ^= true;
     return pressed;
+}
+
+// Manually declare what we need instead of Psapi.h
+typedef struct {
+    DWORD  cb;
+    DWORD  PageFaultCount;
+    SIZE_T PeakWorkingSetSize;
+    SIZE_T WorkingSetSize;
+    SIZE_T QuotaPeakPagedPoolUsage;
+    SIZE_T QuotaPagedPoolUsage;
+    SIZE_T QuotaPeakNonPagedPoolUsage;
+    SIZE_T QuotaNonPagedPoolUsage;
+    SIZE_T PagefileUsage;
+    SIZE_T PeakPagefileUsage;
+    SIZE_T PrivateUsage;
+} MY_PROCESS_MEMORY_COUNTERS_EX;
+
+static f64 now_seconds() {
+    LARGE_INTEGER t;
+    QueryPerformanceCounter(&t);
+    return (f64)t.QuadPart / (f64)G->freq.QuadPart;
+}
+
+// TCC needs these declared as regular C functions with __stdcall
+__attribute__((dllimport)) BOOL __stdcall
+K32GetProcessMemoryInfo(HANDLE, MY_PROCESS_MEMORY_COUNTERS_EX *, DWORD);
+__attribute__((dllimport)) BOOL __stdcall GlobalMemoryStatusEx(MEMORYSTATUSEX *);
+
+#undef EXPORT
+#define EXPORT extern "C" __declspec(dllexport)
+
+Metrics metrics_init() {
+    Metrics result = {
+        .initialized = true,
+        .processHandle =
+            OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, GetCurrentProcessId()),
+    };
+
+    return result;
+}
+
+u64 ReadPageFaultCount(Metrics m) {
+    MY_PROCESS_MEMORY_COUNTERS_EX counters = {0};
+    counters.cb                            = sizeof(counters);
+    K32GetProcessMemoryInfo(m.processHandle, &counters, sizeof(counters));
+
+    u64 result = counters.PageFaultCount;
+    return result;
+}
+
+u64 EstimateCPUTimerFreq() {
+    u64 MillisecondsToWait = 100;
+
+    LARGE_INTEGER OSFreq = {0};
+    QueryPerformanceFrequency(&OSFreq);
+
+    u64           CPUStart = ReadCPUTimer();
+    LARGE_INTEGER OSStart  = {0};
+    QueryPerformanceCounter(&OSStart);
+    LARGE_INTEGER OSEnd      = {0};
+    u64           OSElapsed  = 0;
+    u64           OSWaitTime = OSFreq.QuadPart * MillisecondsToWait / 1000;
+    while (OSElapsed < OSWaitTime) {
+        QueryPerformanceCounter(&OSEnd);
+        OSElapsed = OSEnd.QuadPart - OSStart.QuadPart;
+    }
+
+    u64 CPUEnd     = ReadCPUTimer();
+    u64 CPUElapsed = CPUEnd - CPUStart;
+
+    u64 CPUFreq = 0;
+    if (OSElapsed) {
+        CPUFreq = OSFreq.QuadPart * CPUElapsed / OSElapsed;
+    }
+
+    return CPUFreq;
+};
+
+u64 ReadCPUTimer(void) {
+#if defined(__x86_64__) || defined(__amd64__) || defined(_M_X64) || defined(_M_AMD64) || \
+    defined(__i386__) || defined(_M_IX86)
+    // TCC doesn't support __rdtsc intrinsic; use inline asm instead
+    u32 lo, hi;
+    __asm__ volatile("rdtsc" : "=a"(lo), "=d"(hi));
+    return ((u64)hi << 32) | lo;
+
+#elif defined(__aarch64__)
+    // ARMv8 (AArch64): use CNTVCT_EL0
+    uint64_t cnt;
+    __asm__ volatile("mrs %0, cntvct_el0" : "=r"(cnt));
+    return cnt;
+
+#elif defined(__arm__)
+    // ARMv7-A: use PMCCNTR (if enabled)
+    uint32_t cc;
+    __asm__ volatile("mrc p15, 0, %0, c9, c13, 0" : "=r"(cc));
+    return (uint64_t)cc;
+
+#else
+    static_assert(false, "Unsupported architecture");
+    return 0;
+#endif
+}
+
+#ifndef PROCESSOR_ARCHITECTURE_ARM64
+#define PROCESSOR_ARCHITECTURE_ARM64 12
+#endif
+
+SystemInfo systeminfo_init() {
+    SystemInfo      result = {0};
+    SYSTEM_INFO     sysInfo;
+    MEMORYSTATUSEX  memInfo;
+    OSVERSIONINFOEX osInfo;
+
+    // System
+    GetSystemInfo(&sysInfo);
+    // processorArchitecture = sysInfo.wProcessorArchitecture;
+    result.numberOfProcessors    = sysInfo.dwNumberOfProcessors;
+    result.pageSize              = sysInfo.dwPageSize;
+    result.allocationGranularity = sysInfo.dwAllocationGranularity;
+
+    result.processorArchitecture = "Unknown";
+    switch (sysInfo.wProcessorArchitecture) {
+    case PROCESSOR_ARCHITECTURE_AMD64: result.processorArchitecture = "x64 (AMD/Intel)"; break;
+    case PROCESSOR_ARCHITECTURE_INTEL: result.processorArchitecture = "x86"; break;
+    case PROCESSOR_ARCHITECTURE_ARM: result.processorArchitecture = "ARM"; break;
+    case PROCESSOR_ARCHITECTURE_ARM64: result.processorArchitecture = "ARM64"; break;
+    }
+
+    result.cpuFreq = (f64)(EstimateCPUTimerFreq()) / 1000.0 / 1000.0 / 1000.0;
+
+    // Memory
+    memInfo.dwLength = sizeof(memInfo);
+    if (GlobalMemoryStatusEx(&memInfo)) {
+        result.totalPhys    = memInfo.ullTotalPhys;
+        result.availPhys    = memInfo.ullAvailPhys;
+        result.totalVirtual = memInfo.ullTotalVirtual;
+        result.availVirtual = memInfo.ullAvailVirtual;
+    } else {
+        result.totalPhys = result.availPhys = result.totalVirtual = result.availVirtual = 0;
+    }
+
+    // OS
+    ZeroMemory(&osInfo, sizeof(osInfo));
+    osInfo.dwOSVersionInfoSize = sizeof(osInfo);
+    if (GetVersionEx((OSVERSIONINFO *)&osInfo)) {
+        result.majorVersion = osInfo.dwMajorVersion;
+        result.minorVersion = osInfo.dwMinorVersion;
+        result.buildNumber  = osInfo.dwBuildNumber;
+        result.platformId   = osInfo.dwPlatformId;
+    } else {
+        result.majorVersion = result.minorVersion = result.buildNumber = result.platformId = 0;
+    }
+
+    systeminfo_print(result);
+
+    return result;
 }

@@ -1,5 +1,45 @@
 #pragma once
 
+// Forward-declare C standard library functions to suppress implicit declaration warnings
+int printf(const char *fmt, ...);
+int vsnprintf(char *buf, unsigned long size, const char *fmt, va_list args);
+void abort(void);
+
+#define assert(expr) \
+    do { if (!(expr)) { printf("Assertion failed: %s (%s:%d)\n", #expr, __FILE__, __LINE__); abort(); } } while(0)
+
+#define COL_RESET "\033[0m"
+#define COL_INFO "\033[32m"          // Green
+#define COL_WARN "\033[33m"          // Yellow
+#define COL_ERROR "\033[31m"         // Red
+#define COL_FATAL "\033[41m\033[97m" // White on Red background
+
+typedef const char *cstr;
+
+#define LIST_VAR "\n\t> "
+
+#define INFO(msg, ...) \
+    printf(COL_INFO "[INFO]" COL_RESET "  [%s] " msg "\n", __func__, ##__VA_ARGS__)
+#define WARN(msg, ...) \
+    printf(COL_WARN "[WARN]" COL_RESET "  [%s] " msg "\n", __func__, ##__VA_ARGS__)
+#define ERR(msg, ...) \
+    printf(COL_ERROR "[ERROR]" COL_RESET " [%s] " msg "\n", __func__, ##__VA_ARGS__)
+#define FATAL(msg, ...)                                                                \
+    do {                                                                               \
+        printf(COL_FATAL "[FATAL]" COL_RESET " [%s:%d] " msg "\n", __func__, __LINE__, \
+               ##__VA_ARGS__);                                                         \
+        abort();                                                                       \
+    } while (0);
+
+#define global static
+#define persist static
+#define internal static
+
+typedef struct {
+    char *name;
+    char *version;
+} Info;
+
 #define KB(n) ((n) * 1024)
 #define MB(n) (KB(n) * 1024)
 #define GB(n) (MB(n) * 1024)
@@ -193,3 +233,53 @@ typedef enum {
     KS_JUST_PRESSED,
     KS_PRESSED,
 } KeyState;
+
+typedef struct {
+    u64 permMemorySize, tempMemorySize;
+} AppInfo;
+
+typedef struct {
+    bool  initialized;
+    void *processHandle;
+} Metrics;
+
+u64 ReadPageFaultCount(Metrics);
+
+Metrics metrics_init();
+
+u64 ReadCPUTimer();
+
+u64 EstimateCPUTimerFreq();
+
+typedef struct {
+    // System
+    cstr processorArchitecture;
+    u32  numberOfProcessors, pageSize, allocationGranularity;
+    f64  cpuFreq;
+
+    // Memory
+    u64 totalPhys, availPhys, totalVirtual, availVirtual;
+
+    // OS
+    u32 majorVersion, minorVersion, buildNumber, platformId;
+
+    // GPU
+    cstr gpuName, gpuVendor, glVersion;
+} SystemInfo;
+
+SystemInfo systeminfo_init();
+
+void systeminfo_print(SystemInfo info) {
+    INFO("System Information");
+    printf("\t> Platform: \t\t\tWindows %s\n", info.processorArchitecture);
+    printf("\t> Version: \t\t\t%u.%u.%u\n", info.majorVersion, info.minorVersion, info.buildNumber);
+    printf("\t> Processor Count: \t\t%u\n", info.numberOfProcessors);
+    printf("\t> CPU Frequency: \t\t%.2f GHz\n", info.cpuFreq);
+    printf("\t> Page Size: \t\t\t%u bytes\n", info.pageSize);
+
+    INFO("Memory Information");
+    printf("\t> Total Physical Memory: \t%llu MB\n", info.totalPhys / (1024 * 1024));
+    printf("\t> Available Physical Memory: \t%llu MB\n", info.availPhys / (1024 * 1024));
+    printf("\t> Total Virtual Memory: \t%llu MB\n", info.totalVirtual / (1024 * 1024));
+    printf("\t> Available Virtual Memory: \t%llu MB\n", info.availVirtual / (1024 * 1024));
+}

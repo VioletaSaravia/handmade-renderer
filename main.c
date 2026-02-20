@@ -1,5 +1,6 @@
 #define ENGINE_IMPL
 #include "base_win.c"
+#include "profiler.c"
 
 static bool GetLastWriteTime(const char *filename, FILETIME *outTime) {
     WIN32_FILE_ATTRIBUTE_DATA data;
@@ -10,9 +11,11 @@ static bool GetLastWriteTime(const char *filename, FILETIME *outTime) {
     return true;
 }
 
-void tcc_err(void *opaque, const char *msg) { OutputDebugString(msg); }
+void tcc_err(void *opaque, const char *msg) { printf(msg); }
 
 static bool LoadGameDLL() {
+    BeginBlock(2, "LoadGameDLL", __FILE__, __LINE__, 0);
+
     GetLastWriteTime("game.c", &G->last_write);
 
     if (G->tcc) {
@@ -40,6 +43,9 @@ static bool LoadGameDLL() {
     if (tcc_add_symbol(G->tcc, "data", &G->game_memory) == -1) return false;
     if (tcc_relocate(G->tcc, TCC_RELOCATE_AUTO) == -1) return false;
 
+    G->game_info = tcc_get_symbol(G->tcc, "game");
+    if (!G->game_info) return false;
+
     void (*new_init)() = tcc_get_symbol(G->tcc, "init");
     if (new_init) G->init = new_init;
 
@@ -62,6 +68,7 @@ static bool LoadGameDLL() {
     void (*new_quit)() = tcc_get_symbol(G->tcc, "quit");
     if (new_quit) G->quit = new_quit;
 
+    EndBlock();
     return true;
 }
 
@@ -127,14 +134,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, u32 message, WPARAM wParam, LPARAM lParam) {
     return 0;
 }
 
-#define APPNAME "HELLO_WIN"
-
-static f64 now_seconds() {
-    LARGE_INTEGER t;
-    QueryPerformanceCounter(&t);
-    return (f64)t.QuadPart / (f64)G->freq.QuadPart;
-}
-
 i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, i32 nCmdShow) {
     // SetProcessDPIAware();
     {
@@ -158,23 +157,28 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
         ctx()->temp = (Arena){.data = alloc_perm(KB(64)), .used = 0, .cap = KB(64)};
     }
 
+    G->metrics     = metrics_init();
+    G->system_info = systeminfo_init();
+    G->profiler    = profiler_new("Handmade Renderer");
+    BeginBlock(1, "Initialization", __FILE__, __LINE__, 0);
     G->draw_queue = ALLOC_ARRAY(DrawCmd, 1024);
+
     QueryPerformanceFrequency(&G->freq);
     const f32 target_dt  = 1.0f / 75.0f;
     f32       dt         = target_dt;
     f64       next_frame = now_seconds();
 
-    if (!LoadGameDLL()) return 1;
+    if (!LoadGameDLL()) {
+        MessageBox(NULL, "Failed to load game!", "Error", MB_ICONERROR);
+        return 1;
+    }
 
     G->game_memory = alloc_perm(G->gamedata_size());
     G->screen_buf  = ALLOC_ARRAY(u32, G->screen_size.w * G->screen_size.h);
 
-    char szAppName[] = APPNAME; // The name of this application
-    char szTitle[]   = APPNAME; // The title bar text
-
     WNDCLASS wc = {
         .hInstance     = hInstance,
-        .lpszClassName = szAppName,
+        .lpszClassName = G->game_info->name,
         .lpfnWndProc   = (WNDPROC)WndProc,
         .style         = CS_DBLCLKS | CS_VREDRAW | CS_HREDRAW,
         .hbrBackground = NULL, //(HBRUSH)GetStockObject(BLACK_BRUSH),
@@ -188,13 +192,15 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     RECT  wr    = {0, 0, G->screen_size.w, G->screen_size.h};
     AdjustWindowRect(&wr, style, false);
 
-    G->hwnd = CreateWindow(szAppName, szTitle, style, CW_USEDEFAULT, CW_USEDEFAULT,
-                           wr.right - wr.left, wr.bottom - wr.top, 0, 0, hInstance, 0);
+    G->hwnd =
+        CreateWindow(G->game_info->name, G->game_info->name, style, CW_USEDEFAULT, CW_USEDEFAULT,
+                     wr.right - wr.left, wr.bottom - wr.top, 0, 0, hInstance, 0);
 
     if (!G->hwnd) return 0;
 
     if (G->init) G->init();
 
+    EndBlock();
     while (!G->shutdown) {
         f64 frame_start = now_seconds();
 
@@ -316,7 +322,6 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                 }
             }
 
-            // Copy the result back into screen_buf
             GdiFlush();
             CopyMemory(G->screen_buf, buf_bits, G->screen_size.w * G->screen_size.h * sizeof(u32));
 
@@ -362,5 +367,6 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     }
 
     if (G->quit) G->quit();
+    profiler_end();
     return G->msg.wParam;
 }

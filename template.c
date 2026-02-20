@@ -1,13 +1,21 @@
-
 #include "base_win.c"
+
+export Info game = {
+    .name    = "Template",
+    .version = "0.1.0",
+};
 
 struct Data {
     u8 _;
 };
 
-export void init() { *data = (Data){0}; }
+export void init() {
+    *data = (Data){
+        ._ = 0,
+    };
+}
 
-export void update() {}
+export void update(q8 dt) {}
 
 export void quit() {}
 
