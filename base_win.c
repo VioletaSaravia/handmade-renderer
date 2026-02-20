@@ -386,3 +386,47 @@ SystemInfo systeminfo_init() {
 
     return result;
 }
+
+static bool GetLastWriteTime(const char *filename, FILETIME *outTime) {
+    WIN32_FILE_ATTRIBUTE_DATA data;
+
+    if (!GetFileAttributesEx(filename, GetFileExInfoStandard, &data)) return false;
+
+    *outTime = data.ftLastWriteTime;
+    return true;
+}
+
+static void FullscreenWindow(HWND hWnd) {
+    DWORD dwStyle = GetWindowLong(hWnd, GWL_STYLE);
+
+    if (dwStyle & WS_OVERLAPPEDWINDOW) {
+        GetWindowPlacement(hWnd, &G->prev_placement);
+
+        SetWindowLong(hWnd, GWL_STYLE, dwStyle & ~WS_OVERLAPPEDWINDOW);
+        SetWindowPos(hWnd, HWND_TOP, 0, 0, GetSystemMetrics(SM_CXSCREEN),
+                     GetSystemMetrics(SM_CYSCREEN), SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+    } else {
+        SetWindowLong(hWnd, GWL_STYLE, dwStyle | WS_OVERLAPPEDWINDOW);
+        SetWindowPlacement(hWnd, &G->prev_placement);
+        SetWindowPos(hWnd, NULL, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+    }
+}
+
+static void CenterWindow(HWND hWnd) {
+    HWND hwnd_parent;
+    RECT rw_self, rc_parent, rw_parent;
+    i32  xpos, ypos;
+
+    hwnd_parent = GetParent(hWnd);
+    if (NULL == hwnd_parent) hwnd_parent = GetDesktopWindow();
+
+    GetWindowRect(hwnd_parent, &rw_parent);
+    GetClientRect(hwnd_parent, &rc_parent);
+    GetWindowRect(hWnd, &rw_self);
+
+    xpos = rw_parent.left + (rc_parent.right + rw_self.left - rw_self.right) / 2;
+    ypos = rw_parent.top + (rc_parent.bottom + rw_self.top - rw_self.bottom) / 2;
+
+    SetWindowPos(hWnd, NULL, xpos, ypos, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+}

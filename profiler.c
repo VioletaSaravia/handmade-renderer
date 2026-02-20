@@ -100,98 +100,92 @@ void profiler_end() {
     }
 }
 
-// i32 ByTime(const void *from, const void *to) {
-//     return ((RepBlock *)(from))->time - ((RepBlock *)(to))->time;
-// }
+i32 ByTime(const void *from, const void *to) {
+    return ((RepBlock *)(from))->time - ((RepBlock *)(to))->time;
+}
 
-// i32 ByBytes(const void *from, const void *to) {
-//     return ((RepBlock *)(from))->bytes - ((RepBlock *)(to))->bytes;
-// }
+i32 ByBytes(const void *from, const void *to) {
+    return ((RepBlock *)(from))->bytes - ((RepBlock *)(to))->bytes;
+}
 
-// i32 ByPageFaults(const void *from, const void *to) {
-//     return ((RepBlock *)(from))->pageFaults - ((RepBlock *)(to))->pageFaults;
-// }
+i32 ByPageFaults(const void *from, const void *to) {
+    return ((RepBlock *)(from))->pageFaults - ((RepBlock *)(to))->pageFaults;
+}
 
-// static f64 ToGb(f64 bytes) { return bytes / 1024.0 / 1024.0 / 1024.0; }
+static f64 ToGb(f64 bytes) { return bytes / 1024.0 / 1024.0 / 1024.0; }
 
-// RepProfiler New(cstr name, u64 maxRepeats) {
-//     return (RepProfiler){
-//         .name       = name,
-//         .first      = {},
-//         .min        = {},
-//         .max        = {},
-//         .avg        = {},
-//         .current    = {},
-//         .repeats    = 0,
-//         .maxRepeats = maxRepeats,
-//     };
-// }
+RepProfiler repprofiler_new(cstr name, u64 maxRepeats) {
+    return (RepProfiler){
+        .name       = name,
+        .maxRepeats = maxRepeats,
+    };
+}
 
-// void BeginRep() {
-//     LARGE_INTEGER perfCounter = {0};
-//     QueryPerformanceCounter(&perfCounter);
-//     current = (RepBlock){
-//         .time       = (u64)(perfCounter.QuadPart),
-//         .bytes      = 0,
-//         .pageFaults = ReadPageFaultCount(G->metrics),
-//     };
-// }
+void rep_begin(RepProfiler *p) {
+    LARGE_INTEGER perfCounter = {0};
+    QueryPerformanceCounter(&perfCounter);
+    p->current = (RepBlock){
+        .time       = (u64)(perfCounter.QuadPart),
+        .bytes      = 0,
+        .pageFaults = ReadPageFaultCount(G->metrics),
+    };
+}
 
-// void AddBytes(u64 bytes) { current.bytes += bytes; }
+void rep_add_bytes(RepProfiler *p, u64 bytes) { p->current.bytes += bytes; }
 
-// void EndRep() {
-//     LARGE_INTEGER perfCounter = {0};
-//     QueryPerformanceCounter(&perfCounter);
-//     current.time       = perfCounter.QuadPart - current.time;
-//     current.pageFaults = ReadPageFaultCount(G->metrics) - current.pageFaults;
+void rep_end(RepProfiler *p) {
+    LARGE_INTEGER perfCounter = {0};
+    QueryPerformanceCounter(&perfCounter);
+    p->current.time       = perfCounter.QuadPart - p->current.time;
+    p->current.pageFaults = ReadPageFaultCount(G->metrics) - p->current.pageFaults;
 
-//     if (current.time < min.time || min.time == 0) {
-//         min = current;
-//     }
+    if (p->current.time < p->min.time || p->min.time == 0) {
+        p->min = p->current;
+    }
 
-//     if (current.time >= max.time) {
-//         max = current;
-//     }
+    if (p->current.time >= p->max.time) {
+        p->max = p->current;
+    }
 
-//     avg.bytes += current.bytes;
-//     avg.time += current.time;
-//     avg.pageFaults += current.pageFaults;
+    p->avg.bytes += p->current.bytes;
+    p->avg.time += p->current.time;
+    p->avg.pageFaults += p->current.pageFaults;
 
-//     if (repeats == 0) first = current;
+    if (p->repeats == 0) p->first = p->current;
 
-//     repeats++;
-// }
+    p->repeats++;
+}
 
-// ~RepProfiler() {
-//     INFO("Finished %s after %llu repeats.", name, repeats);
+void repprofiler_print(RepProfiler *p) {
+    INFO("Finished %s after %llu repeats.", p->name, p->repeats);
 
-//     // FIRST
-//     LARGE_INTEGER perfFreq;
-//     QueryPerformanceFrequency(&perfFreq);
+    // FIRST
+    LARGE_INTEGER perfFreq = {0};
+    QueryPerformanceFrequency(&perfFreq);
 
-//     f64 firstTime = f64(first.time) / f64(perfFreq.QuadPart);
-//     printf("\t> Initial: \t%.3f ms\t%.3f GB/s\t%llu pf\n", firstTime * 1000.0,
-//            ToGb(f64(first.bytes) / firstTime), first.pageFaults);
+    f64 firstTime = (f64)(p->first.time) / (f64)(perfFreq.QuadPart);
+    printf("\t> Initial: \t%.3f ms\t%.3f GB/s\t%llu pf\n", firstTime * 1000.0,
+           ToGb((f64)(p->first.bytes) / firstTime), p->first.pageFaults);
 
-//     // MIN
-//     f64 minTime = f64(min.time) / f64(perfFreq.QuadPart);
-//     printf("\t> Fastest: \t%.3f ms\t%.3f GB/s\t%llu pf\n", minTime * 1000.0,
-//            ToGb(f64(min.bytes) / minTime), min.pageFaults);
+    // MIN
+    f64 minTime = (f64)(p->min.time) / (f64)(perfFreq.QuadPart);
+    printf("\t> Fastest: \t%.3f ms\t%.3f GB/s\t%llu pf\n", minTime * 1000.0,
+           ToGb((f64)(p->min.bytes) / minTime), p->min.pageFaults);
 
-//     // MAX
-//     f64 maxTime = f64(max.time) / f64(perfFreq.QuadPart);
-//     printf("\t> Slowest: \t%.3f ms\t%.3f GB/s\t%llu pf\n", maxTime * 1000.0,
-//            ToGb(f64(max.bytes) / maxTime), max.pageFaults);
+    // MAX
+    f64 maxTime = (f64)(p->max.time) / (f64)(perfFreq.QuadPart);
+    printf("\t> Slowest: \t%.3f ms\t%.3f GB/s\t%llu pf\n", maxTime * 1000.0,
+           ToGb((f64)(p->max.bytes) / maxTime), p->max.pageFaults);
 
-//     // AVERAGE
-//     f64 avgBytes  = f64(avg.bytes) / f64(repeats);
-//     f64 avgFaults = f64(avg.pageFaults) / f64(repeats);
-//     f64 avgTime   = f64(avg.time) / f64(repeats);
-//     avgTime /= (f64)(perfFreq.QuadPart);
+    // AVERAGE
+    f64 avgBytes  = (f64)(p->avg.bytes) / (f64)(p->repeats);
+    f64 avgFaults = (f64)(p->avg.pageFaults) / (f64)(p->repeats);
+    f64 avgTime   = (f64)(p->avg.time) / (f64)(p->repeats);
+    avgTime /= (f64)(perfFreq.QuadPart);
 
-//     printf("\t> Average: \t%.3f ms\t%.3f GB/s\t%.2f pf\n", avgTime * 1000.0,
-//            ToGb(f64(avgBytes) / avgTime), avgFaults);
-// }
+    printf("\t> Average: \t%.3f ms\t%.3f GB/s\t%.2f pf\n", avgTime * 1000.0,
+           ToGb((f64)(avgBytes) / avgTime), avgFaults);
+}
 
 #ifndef DISABLE_PROFILER
 
@@ -204,9 +198,9 @@ void profiler_end() {
     auto _profilerFlag = BeginScopeBlock(__COUNTER__ + 1, name, __FILE__, __LINE__)
 #define PROFILE_FUNCTION() \
     auto _profilerFlag = BeginScopeBlock(__COUNTER__ + 1, __func__, __FILE__, __LINE__)
-#define PROFILE(name, code)                                      \
+#define PROFILE(name, code)                                \
     BeginBlock(__COUNTER__ + 1, name, __FILE__, __LINE__); \
-    code;                                                        \
+    code;                                                  \
     EndBlock();
 
 #define REPETITION_PROFILE(name, count)                    \

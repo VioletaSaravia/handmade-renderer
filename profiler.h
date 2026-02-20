@@ -42,3 +42,9 @@ typedef struct {
     // void               EndRep();
     // ~RepProfiler();
 } RepProfiler;
+
+RepProfiler repprofiler_new(cstr name, u64 maxRepeats);
+void        rep_begin(RepProfiler *p);
+void        rep_add_bytes(RepProfiler *p, u64 bytes);
+void        rep_end(RepProfiler *p);
+void        repprofiler_print(RepProfiler *p);
