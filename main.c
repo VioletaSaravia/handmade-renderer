@@ -1,6 +1,3 @@
-#include <libtcc/libtcc.h>
-#include <windows.h>
-
 #define ENGINE_IMPL
 #include "base_win.c"
 
@@ -158,12 +155,12 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             .draw_size      = 1024,
         };
 
-        G->ctx.temp = (Arena){.data = alloc_perm(KB(64)), .used = 0, .cap = KB(64)};
+        ctx()->temp = (Arena){.data = alloc_perm(KB(64)), .used = 0, .cap = KB(64)};
     }
 
     G->draw_queue = ALLOC_ARRAY(DrawCmd, 1024);
     QueryPerformanceFrequency(&G->freq);
-    const f32 target_dt  = 1.0f / 60.0f; // 16.666 ms
+    const f32 target_dt  = 1.0f / 75.0f;
     f32       dt         = target_dt;
     f64       next_frame = now_seconds();
 
@@ -187,12 +184,10 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
     if (!RegisterClass(&wc)) return 0;
 
-    // Calculate window size that gives the desired client area
     DWORD style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
     RECT  wr    = {0, 0, G->screen_size.w, G->screen_size.h};
     AdjustWindowRect(&wr, style, false);
 
-    // create the browser
     G->hwnd = CreateWindow(szAppName, szTitle, style, CW_USEDEFAULT, CW_USEDEFAULT,
                            wr.right - wr.left, wr.bottom - wr.top, 0, 0, hInstance, 0);
 
@@ -203,14 +198,25 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     while (!G->shutdown) {
         f64 frame_start = now_seconds();
 
+        for (i32 i = 0; i < K_COUNT; i++) {
+            if (G->keys[i] == KS_JUST_RELEASED) G->keys[i] = KS_RELEASED;
+            if (G->keys[i] == KS_JUST_PRESSED) G->keys[i] = KS_PRESSED;
+        }
+
         while (PeekMessage(&G->msg, NULL, 0, 0, PM_REMOVE)) {
             switch (G->msg.message) {
             case WM_QUIT: G->shutdown = true; break;
 
+            case WM_LBUTTONDOWN: G->keys[K_MOUSE_LEFT] = KS_JUST_PRESSED; break;
+            case WM_LBUTTONUP: G->keys[K_MOUSE_LEFT] = KS_JUST_RELEASED; break;
+            case WM_MBUTTONDOWN: G->keys[K_MOUSE_MID] = KS_JUST_PRESSED; break;
+            case WM_MBUTTONUP: G->keys[K_MOUSE_MID] = KS_JUST_RELEASED; break;
+            case WM_RBUTTONDOWN: G->keys[K_MOUSE_RIGHT] = KS_JUST_PRESSED; break;
+            case WM_RBUTTONUP: G->keys[K_MOUSE_RIGHT] = KS_JUST_RELEASED; break;
+
             case WM_KEYDOWN:
                 switch (G->msg.wParam) {
                 case VK_ESCAPE: DestroyWindow(G->hwnd); break;
-
                 case VK_F5: LoadGameDLL(); break;
                 case VK_F6:
                     LoadGameDLL();
@@ -238,6 +244,8 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
         }
 
         G->update((q8)(dt * 256.0f));
+        static i32 bla = 69;
+        draw_text(string_format(&ctx()->temp, "blabers %d", bla), 50, 50, rgb(255, 255, 255));
 
         {
             HDC  hdc = GetDC(G->hwnd);
@@ -339,16 +347,18 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             G->draw_count = 0;
         }
 
-        next_frame += target_dt;
+        {
+            next_frame += target_dt;
 
-        f64 remaining = next_frame - now_seconds();
-        if (remaining > 0.0) {
-            DWORD sleep_ms = (DWORD)(remaining * 1000.0);
-            if (sleep_ms > 0) Sleep(sleep_ms);
+            f64 remaining = next_frame - now_seconds();
+            if (remaining > 0.0) {
+                DWORD sleep_ms = (DWORD)(remaining * 1000.0);
+                if (sleep_ms > 0) Sleep(sleep_ms);
+            }
+
+            ctx()->temp.used = 0;
+            dt               = now_seconds() - frame_start;
         }
-
-        G->ctx.temp.used = 0;
-        dt               = now_seconds() - frame_start;
     }
 
     if (G->quit) G->quit();

@@ -1,8 +1,9 @@
+#include "windows.h"
 #include <libtcc/libtcc.h>
 
 #include "base.h"
 
-typedef enum { DCT_RECT, DCT_TEXT, DCT_COUNT } DrawCmdType;
+typedef enum { DCT_RECT, DCT_RECT_OUTLINE, DCT_TEXT, DCT_COUNT } DrawCmdType;
 
 typedef struct {
     DrawCmdType t;
@@ -52,20 +53,16 @@ static EngineData *G;
 import extern EngineData *G;
 #endif
 
+Context *ctx() { return &G->ctx; }
+
 void draw_rect(rect r, col32 color) {
     if (G->draw_count == G->draw_size) return;
     G->draw_queue[G->draw_count++] = (DrawCmd){.t = DCT_RECT, .r = r, .color = color};
 }
 
 void draw_rect_outline(rect r, col32 color) {
-    for (i32 x_coord = r.x; x_coord < r.x + r.w; x_coord++) {
-        G->screen_buf[r.y * G->screen_size.w + x_coord]             = color;
-        G->screen_buf[(r.y + r.h - 1) * G->screen_size.w + x_coord] = color;
-    }
-    for (i32 y_coord = r.y; y_coord < r.y + r.h; y_coord++) {
-        G->screen_buf[y_coord * G->screen_size.w + r.x]             = color;
-        G->screen_buf[y_coord * G->screen_size.w + (r.x + r.w - 1)] = color;
-    }
+    if (G->draw_count == G->draw_size) return;
+    G->draw_queue[G->draw_count++] = (DrawCmd){.t = DCT_RECT_OUTLINE, .r = r, .color = color};
 }
 
 void draw_circle(i32 x, i32 y, i32 r, col32 color) {
@@ -176,7 +173,7 @@ void draw_text(char *text, i32 x, i32 y, col32 color) {
 
 void *image_read(char *path) { return LoadImage(NULL, path, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE); }
 
-u8 *alloc(i32 size, Arena* a) {
+u8 *alloc(i32 size, Arena *a) {
     if (a->used + size > a->cap) {
         return NULL;
         // i32 new_cap = a->cap == 0 ? 1024 : a->cap * 2;
@@ -195,5 +192,46 @@ u8 *alloc(i32 size, Arena* a) {
     return result;
 }
 
-u8* alloc_perm(i32 size) { return alloc(size, &G->ctx.perm); }
-u8* alloc_temp(i32 size) { return alloc(size, &G->ctx.temp); }
+u8 *alloc_perm(i32 size) { return alloc(size, &ctx()->perm); }
+u8 *alloc_temp(i32 size) { return alloc(size, &ctx()->temp); }
+
+char *string_format(Arena *a, char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+
+    va_list copy;
+    va_copy(copy, args);
+
+    int needed = vsnprintf(NULL, 0, fmt, args);
+    va_end(args);
+
+    char *result = alloc((size_t)needed + 1, a);
+
+    vsnprintf(result, (size_t)needed + 1, fmt, copy);
+    va_end(copy);
+
+    return result;
+}
+
+bool gui_button(char *name, q8 x, q8 y) {
+    rect  r     = {x, y, Q8(60), Q8(20)};
+    bool  col   = col_point_rect(G->mouse_pos, r);
+    col32 color = col ? rgb(100, 100, 100) : rgb(30, 30, 30);
+
+    draw_rect(r, color);
+    draw_text(name, q8_to_i32(x), q8_to_i32(y), rgb(250, 250, 250));
+
+    return G->keys[K_MOUSE_LEFT] == KS_JUST_PRESSED && col;
+}
+
+bool gui_toggle(char *name, q8 x, q8 y, bool *val) {
+    rect  r     = {x, y, Q8(60), Q8(20)};
+    col32 color = *val ? rgb(100, 100, 100) : rgb(30, 30, 30);
+
+    draw_rect(r, color);
+    draw_text(name, q8_to_i32(x), q8_to_i32(y), rgb(250, 250, 250));
+
+    bool pressed = G->keys[K_MOUSE_LEFT] == KS_JUST_PRESSED && col_point_rect(G->mouse_pos, r);
+    if (pressed) *val ^= true;
+    return pressed;
+}

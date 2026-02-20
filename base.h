@@ -1,7 +1,5 @@
 #pragma once
 
-#include "windows.h"
-
 #define KB(n) ((n) * 1024)
 #define MB(n) (KB(n) * 1024)
 #define GB(n) (MB(n) * 1024)
@@ -71,7 +69,19 @@ typedef union {
     struct {
         q8 w, h;
     };
+    struct {
+        q8 u, v;
+    };
 } v2;
+
+typedef union {
+    struct {
+        q8 x, y, z;
+    };
+    struct {
+        q8 r, g, b;
+    };
+} v3;
 
 typedef union {
     struct {
@@ -92,6 +102,8 @@ typedef struct {
     Arena temp;
 } Context;
 
+Context *ctx();
+
 // Data
 
 u8 *alloc(i32 size, Arena *a);
@@ -99,6 +111,8 @@ u8 *alloc_perm(i32 size);
 u8 *alloc_temp(i32 size);
 #define ALLOC(type) (type *)alloc_perm(sizeof(type))
 #define ALLOC_ARRAY(type, count) (type *)alloc_perm(sizeof(type) * (count))
+
+char *string_format(Arena *a, char *fmt, ...);
 
 #define STR(str) (string){.text = str, .len = sizeof(str) - 1}
 
@@ -141,8 +155,8 @@ void draw_arc(i32 x, i32 y, i32 r, rad from, rad to, col32 color);
 
 // GUI
 
-bool gui_button(i32 x, i32 y);
-bool gui_toggle(i32 x, i32 y, bool *val);
+bool gui_button(char *name, q8 x, q8 y);
+bool gui_toggle(char *name, q8 x, q8 y, bool *val);
 
 // IO
 
@@ -167,12 +181,15 @@ typedef enum {
     K_A,
     K_R,
     K_S,
+    K_MOUSE_LEFT,
+    K_MOUSE_MID,
+    K_MOUSE_RIGHT,
     K_COUNT,
 } Key;
 
 typedef enum {
-    KS_JUST_PRESSED = 0,
-    KS_PRESSED,
-    KS_RELEASED,
+    KS_RELEASED = 0,
     KS_JUST_RELEASED,
+    KS_JUST_PRESSED,
+    KS_PRESSED,
 } KeyState;

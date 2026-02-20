@@ -7,7 +7,6 @@ struct Data {
     v2i   tilemap_size;
     u8  **tilemap;
     q8    tile_size;
-    rect  btn_rect;
 };
 
 export void init() {
@@ -24,7 +23,6 @@ export void init() {
                 rgb(0, 0, 255),
             },
         .tile_size    = Q8(32),
-        .btn_rect     = (rect){Q8(8), Q8(8), Q8(59), Q8(19)},
         .tilemap_size = (v2i){64, 64},
     };
 
@@ -41,9 +39,6 @@ export void init() {
 }
 
 export void update(q8 dt) {
-    data->btn_rect.x += q8_div(dt, Q8(1));
-    data->btn_rect.y += q8_div(dt, Q8(3));
-
     for (i32 y = 0; y < G->screen_size.h / q8_to_i32(data->tile_size); y++) {
         for (i32 x = 0; x < G->screen_size.w / q8_to_i32(data->tile_size); x++) {
             i32 map_x = (data->camera_pos.x + x) % data->tilemap_size.x;
@@ -56,9 +51,7 @@ export void update(q8 dt) {
         }
     }
 
-    col32 btn_color = col_point_rect(G->mouse_pos, data->btn_rect) ? data->fg : data->bg;
-    draw_rect(data->btn_rect, btn_color);
-    draw_text("Blabers!", 10, 10, data->text_light);
+    gui_button("test", Q8(10), Q8(10));
 }
 
 export void quit() {}
