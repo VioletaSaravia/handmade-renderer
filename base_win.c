@@ -4,7 +4,7 @@
 #include "base.h"
 #include "profiler.h"
 
-typedef enum { DCT_RECT, DCT_RECT_OUTLINE, DCT_TEXT, DCT_COUNT } DrawCmdType;
+typedef enum { DCT_RECT, DCT_RECT_OUTLINE, DCT_TEXT, DCT_MESH, DCT_COUNT } DrawCmdType;
 
 typedef struct {
     DrawCmdType t;
@@ -18,6 +18,11 @@ typedef struct {
 
         struct { // rect
             rect r;
+        };
+
+        struct { // mesh
+            v3 *vertices;
+            i32 count;
         };
     };
 } DrawCmd;
@@ -59,6 +64,12 @@ import extern EngineData *G;
 #endif
 
 Context *ctx() { return &G->ctx; }
+
+void draw_mesh(v3 *p, i32 count, col32 color) {
+    if (G->draw_count == G->draw_size) return;
+    G->draw_queue[G->draw_count++] =
+        (DrawCmd){.t = DCT_MESH, .vertices = p, .count = count, .color = color};
+}
 
 void draw_rect(rect r, col32 color) {
     if (G->draw_count == G->draw_size) return;

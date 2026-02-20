@@ -105,7 +105,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                     .perm = perm,
                 },
             .prev_placement = {sizeof(WINDOWPLACEMENT)},
-            .screen_size    = {.w = 640, .h = 320},
+            .screen_size    = {.w = 640, .h = 360},
             .draw_size      = 1024,
         };
 
@@ -116,7 +116,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     G->system_info = systeminfo_init();
     G->profiler    = profiler_new("Handmade Renderer");
     BLOCK_BEGIN("init");
-    G->draw_queue = ALLOC_ARRAY(DrawCmd, 1024);
+    G->draw_queue = ALLOC_ARRAY(DrawCmd, G->draw_size);
 
     QueryPerformanceFrequency(&G->freq);
     const f32 target_dt  = 1.0f / 75.0f;
@@ -203,8 +203,6 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
         }
 
         G->update((q8)(dt * 256.0f));
-        static i32 bla = 69;
-        draw_text(string_format(&ctx()->temp, "blabers %d", bla), 50, 50, rgb(255, 255, 255));
 
         {
             HDC  hdc = GetDC(G->hwnd);
@@ -222,6 +220,32 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                 DrawCmd next = G->draw_queue[i];
 
                 switch (next.t) {
+                case DCT_MESH: {
+                    for (i32 v = 0; v < next.count; v++) {
+                        v3 *vert            = &next.vertices[v];
+                        v2  screen_coords_q = v2_screen(v3_project(*vert), G->screen_size);
+                        i32 x               = q8_to_i32(screen_coords_q.x);
+                        i32 y               = q8_to_i32(screen_coords_q.y);
+
+                        // Draw a small square for the point
+                        rect r = {
+                            .x = x - 5,
+                            .y = y - 5,
+                            .w = 10,
+                            .h = 10,
+                        };
+                        for (i32 y_coord = r.y; y_coord < r.y + r.h; y_coord++) {
+                            for (i32 x_coord = r.x; x_coord < r.x + r.w; x_coord++) {
+                                if (x_coord >= 0 && x_coord < G->screen_size.w && y_coord >= 0 &&
+                                    y_coord < G->screen_size.h) {
+                                    i32 coord            = y_coord * G->screen_size.w + x_coord;
+                                    G->screen_buf[coord] = next.color;
+                                }
+                            }
+                        }
+                    }
+                    break;
+                }
                 case DCT_RECT: {
                     next.r = (rect){
                         .x = q8_to_i32(next.r.x),

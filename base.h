@@ -1,12 +1,17 @@
 #pragma once
 
 // Forward-declare C standard library functions to suppress implicit declaration warnings
-int printf(const char *fmt, ...);
-int vsnprintf(char *buf, unsigned long size, const char *fmt, va_list args);
+int  printf(const char *fmt, ...);
+int  vsnprintf(char *buf, unsigned long size, const char *fmt, va_list args);
 void abort(void);
 
-#define assert(expr) \
-    do { if (!(expr)) { printf("Assertion failed: %s (%s:%d)\n", #expr, __FILE__, __LINE__); abort(); } } while(0)
+#define assert(expr)                                                             \
+    do {                                                                         \
+        if (!(expr)) {                                                           \
+            printf("Assertion failed: %s (%s:%d)\n", #expr, __FILE__, __LINE__); \
+            abort();                                                             \
+        }                                                                        \
+    } while (0)
 
 #define COL_RESET "\033[0m"
 #define COL_INFO "\033[32m"          // Green
@@ -75,6 +80,9 @@ typedef unsigned long u64;
 typedef i32 q8;
 #define Q8(i32_val) ((q8)((i32_val) << 8))
 
+#define Q8_PI (q8)(804)
+#define Q8_TAU (q8)(1608)
+
 // q8  q8_from_f32(f32 val) { return val * 256.0f; }
 // f32 q8_to_f32(q8 val) { return (f32)val / 256.0f; }
 q8  q8_from_i32(i32 val) { return val << 8; }
@@ -87,6 +95,9 @@ q8 q8_frac(q8 val) { return val & 0xFF; }
 
 q8 q8_mul(q8 a, q8 b) { return (q8)((a * b) >> 8); }
 q8 q8_div(q8 a, q8 b) { return (q8)((a << 8) / b); }
+
+q8 q8_mul64(q8 a, q8 b) { return (q8)(((i64)a * (i64)b) >> 8); }
+q8 q8_div64(q8 a, q8 b) { return (q8)(((i64)a << 8) / b); }
 
 // q8 q8_add_f32(q8 a, f32 b) { return a + q8_from_f32(b); }
 // q8 q8_sub_f32(q8 a, f32 b) { return a - q8_from_f32(b); }
@@ -116,6 +127,15 @@ typedef union {
 
 typedef union {
     struct {
+        i32 x, y;
+    };
+    struct {
+        i32 w, h;
+    };
+} v2i;
+
+typedef union {
+    struct {
         q8 x, y, z;
     };
     struct {
@@ -123,14 +143,72 @@ typedef union {
     };
 } v3;
 
-typedef union {
-    struct {
-        i32 x, y;
+v2 v3_project(v3 v) {
+    // Prevent division by zero: clamp z to a small minimum
+    q8 min_z = 1; // raw q8 value of 1/256, smallest positive
+    q8 z = v.z > min_z ? v.z : min_z;
+    return (v2){q8_div64(v.x, z), q8_div64(v.y, z)};
+}
+
+// 64-entry sine table for one quadrant [0, PI/2], in q8 format.
+// sin_table[i] = sin(i * (PI/2) / 64) * 256
+static const i16 sin_table[65] = {
+    0,   6,   13,  19,  25,  31,  38,  44,  50,  56,  62,  68,  74,  80,  86,  92,  98,
+    103, 109, 115, 120, 126, 131, 136, 142, 147, 152, 157, 162, 167, 171, 176, 181, 185,
+    189, 193, 197, 201, 205, 209, 212, 216, 219, 222, 225, 228, 231, 234, 236, 238, 241,
+    243, 244, 246, 248, 249, 251, 252, 253, 254, 254, 255, 255, 256, 256,
+};
+
+q8 q8_sin(q8 angle) {
+    // Normalize to [0, TAU)
+    while (angle < 0)
+        angle += Q8_TAU;
+    while (angle >= Q8_TAU)
+        angle -= Q8_TAU;
+
+    // Quarter: 0=[0,PI/2), 1=[PI/2,PI), 2=[PI,3PI/2), 3=[3PI/2,TAU)
+    q8  quarter_period = Q8_TAU / 4; // 402
+    i32 quadrant       = angle / quarter_period;
+    q8  remainder      = angle % quarter_period;
+
+    // Map remainder to table index [0, 64]
+    i32 idx = (i32)remainder * 64 / quarter_period;
+    if (idx > 64) idx = 64;
+
+    q8 val;
+    switch (quadrant) {
+    case 0: val = sin_table[idx]; break;
+    case 1: val = sin_table[64 - idx]; break;
+    case 2: val = -sin_table[idx]; break;
+    case 3: val = -sin_table[64 - idx]; break;
+    default: val = 0; break;
+    }
+    return val;
+}
+
+q8 q8_cos(q8 angle) { return q8_sin(angle + Q8_TAU / 4); }
+
+v3 v3_rotate_xz(v3 v, q8 angle) {
+    q8 cos_a = q8_cos(angle);
+    q8 sin_a = q8_sin(angle);
+
+    return (v3){
+        .x = q8_mul(v.x, cos_a) - q8_mul(v.z, sin_a),
+        .y = v.y,
+        .z = q8_mul(v.x, sin_a) + q8_mul(v.z, cos_a),
     };
-    struct {
-        i32 w, h;
+}
+
+v2 v2_screen(v2 v, v2i screen) {
+    // Correct for aspect ratio: use height for both axes to maintain square pixels,
+    // then center horizontally.
+    q8 half_w = Q8(screen.w) >> 1;
+    q8 half_h = Q8(screen.h) >> 1;
+    return (v2){
+        .x = q8_mul(v.x, half_h) + half_w,
+        .y = q8_mul(v.y, half_h) + half_h,
     };
-} v2i;
+}
 
 typedef struct {
     void *data;
@@ -222,8 +300,8 @@ typedef enum {
     K_R,
     K_S,
     K_MOUSE_LEFT,
-    K_MOUSE_MID,
     K_MOUSE_RIGHT,
+    K_MOUSE_MID,
     K_COUNT,
 } Key;
 
