@@ -1,4 +1,5 @@
 #include "profiler.h"
+#include <winnt.h>
 
 Profiler profiler_new(cstr name) {
     Profiler result = {
@@ -12,7 +13,7 @@ Profiler profiler_new(cstr name) {
     return result;
 }
 
-void BeginBlock(u64 id, cstr label, cstr file, i32 line, u64 bytesProcessed) {
+void block_begin(u64 id, cstr label, cstr file, i32 line, u64 bytesProcessed) {
     Profiler *p = &G->profiler;
     if (id >= MAX_BLOCKS) {
         return;
@@ -41,11 +42,11 @@ void BeginBlock(u64 id, cstr label, cstr file, i32 line, u64 bytesProcessed) {
     return;
 }
 
-void AddBytes(u64 bytes) {
+void block_bytes(u64 bytes) {
     G->profiler.blocks[G->profiler.queue[G->profiler.queue_len - 1]].bytesProcessed += bytes;
 }
 
-void EndBlock() {
+void block_end() {
     LARGE_INTEGER now = {0};
     QueryPerformanceCounter(&now);
 
@@ -60,6 +61,8 @@ void EndBlock() {
         prev->time_inc += now.QuadPart - m->from;
     }
 }
+
+static f64 to_gb(f64 bytes) { return bytes / 1024.0 / 1024.0 / 1024.0; }
 
 void profiler_end() {
     Profiler *p = &G->profiler;
@@ -95,24 +98,22 @@ void profiler_end() {
             printf(" %-20s [%llu] \t| %.5f secs\t(%.2f%%) \t| %.5f secs\t(%.2f%%) \t| %.3f GB/s\n",
                    next.label, next.iterations, nextTimeEx, (nextTimeEx / totalTime) * 100,
                    nextTimeInc, (nextTimeInc / totalTime) * 100,
-                   ((f64)(next.bytesProcessed) / nextTimeEx / 1024.0 / 1024.0 / 1024.0));
+                   to_gb((f64)(next.bytesProcessed) / nextTimeEx));
         }
     }
 }
 
-i32 ByTime(const void *from, const void *to) {
+i32 by_time(const void *from, const void *to) {
     return ((RepBlock *)(from))->time - ((RepBlock *)(to))->time;
 }
 
-i32 ByBytes(const void *from, const void *to) {
+i32 by_bytes(const void *from, const void *to) {
     return ((RepBlock *)(from))->bytes - ((RepBlock *)(to))->bytes;
 }
 
-i32 ByPageFaults(const void *from, const void *to) {
+i32 by_page_faults(const void *from, const void *to) {
     return ((RepBlock *)(from))->pageFaults - ((RepBlock *)(to))->pageFaults;
 }
-
-static f64 ToGb(f64 bytes) { return bytes / 1024.0 / 1024.0 / 1024.0; }
 
 RepProfiler repprofiler_new(cstr name, u64 maxRepeats) {
     return (RepProfiler){
@@ -165,17 +166,17 @@ void repprofiler_print(RepProfiler *p) {
 
     f64 firstTime = (f64)(p->first.time) / (f64)(perfFreq.QuadPart);
     printf("\t> Initial: \t%.3f ms\t%.3f GB/s\t%llu pf\n", firstTime * 1000.0,
-           ToGb((f64)(p->first.bytes) / firstTime), p->first.pageFaults);
+           to_gb((f64)(p->first.bytes) / firstTime), p->first.pageFaults);
 
     // MIN
     f64 minTime = (f64)(p->min.time) / (f64)(perfFreq.QuadPart);
     printf("\t> Fastest: \t%.3f ms\t%.3f GB/s\t%llu pf\n", minTime * 1000.0,
-           ToGb((f64)(p->min.bytes) / minTime), p->min.pageFaults);
+           to_gb((f64)(p->min.bytes) / minTime), p->min.pageFaults);
 
     // MAX
     f64 maxTime = (f64)(p->max.time) / (f64)(perfFreq.QuadPart);
     printf("\t> Slowest: \t%.3f ms\t%.3f GB/s\t%llu pf\n", maxTime * 1000.0,
-           ToGb((f64)(p->max.bytes) / maxTime), p->max.pageFaults);
+           to_gb((f64)(p->max.bytes) / maxTime), p->max.pageFaults);
 
     // AVERAGE
     f64 avgBytes  = (f64)(p->avg.bytes) / (f64)(p->repeats);
@@ -184,53 +185,38 @@ void repprofiler_print(RepProfiler *p) {
     avgTime /= (f64)(perfFreq.QuadPart);
 
     printf("\t> Average: \t%.3f ms\t%.3f GB/s\t%.2f pf\n", avgTime * 1000.0,
-           ToGb((f64)(avgBytes) / avgTime), avgFaults);
+           to_gb((f64)(avgBytes) / avgTime), avgFaults);
 }
 
 #ifndef DISABLE_PROFILER
 
-#define PROFILER_NEW(name) New(name)
-#define PROFILER_END() profiler_end()
-#define PROFILE_BLOCK_BEGIN(name) BeginBlock(__COUNTER__ + 1, name, __FILE__, __LINE__)
-#define PROFILE_ADD_BANDWIDTH(bytes) AddBytes(bytes)
-#define PROFILE_BLOCK_END() EndBlock()
-#define PROFILE_SCOPE(name) \
-    auto _profilerFlag = BeginScopeBlock(__COUNTER__ + 1, name, __FILE__, __LINE__)
-#define PROFILE_FUNCTION() \
-    auto _profilerFlag = BeginScopeBlock(__COUNTER__ + 1, __func__, __FILE__, __LINE__)
-#define PROFILE(name, code)                                \
-    BeginBlock(__COUNTER__ + 1, name, __FILE__, __LINE__); \
-    code;                                                  \
-    EndBlock();
+#define BLOCK_BEGIN(name) block_begin(__COUNTER__ + 1, name, __FILE__, __LINE__)
+#define BLOCK_END() block_end()
+#define PROFILE(name, code)                                 \
+    block_begin(__COUNTER__ + 1, name, __FILE__, __LINE__); \
+    code;                                                   \
+    block_end();
 
-#define REPETITION_PROFILE(name, count)                    \
-    do {                                                   \
-        auto _profiler = New(name, count);                 \
-        while (_profiler.repeats < _profiler.maxRepeats) { \
-            _profiler.BeginRep();
+#define REPETITION_PROFILE(name, count)                        \
+    do {                                                       \
+        RepProfiler _profiler_ = repprofiler_new(name, count); \
+        while (_profiler_.repeats < _profiler_.maxRepeats) {   \
+            rep_begin(&_profiler_);
 
-#define REPETITION_BANDWIDTH(bytes) _profiler.AddBytes(bytes)
-
-#define REPETITION_END() \
-    _profiler.EndRep();  \
-    }                    \
-    }                    \
-    while (0)            \
+#define REPETITION_END()  \
+    rep_end(&_profiler_); \
+    }                     \
+    }                     \
+    while (0)             \
         ;
 
 #else
 
-#define PROFILER_NEW(...)
-#define PROFILER_END(...)
-#define PROFILE_BLOCK_BEGIN(...)
-#define PROFILE_ADD_BANDWIDTH(...)
-#define PROFILE_BLOCK_END(...)
-#define PROFILE_SCOPE(...)
-#define PROFILE_FUNCTION(...)
+#define BLOCK_BEGIN(...)
+#define BLOCK_END(...)
 #define PROFILE(name, code) code
 
 #define REPETITION_PROFILE(...)
-#define REPETITION_BANDWIDTH(...)
 #define REPETITION_END(...)
 
 #endif

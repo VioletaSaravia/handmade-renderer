@@ -13,7 +13,7 @@ typedef struct {
 } Block;
 
 #ifndef MAX_BLOCKS
-#define MAX_BLOCKS 64
+#define MAX_BLOCKS 128
 #endif
 
 typedef struct {
@@ -35,12 +35,6 @@ typedef struct {
     cstr     name;
     RepBlock first, min, max, avg, current;
     u64      repeats, maxRepeats;
-
-    // static RepProfiler New(cstr name, u64 maxRepeats = 100);
-    // void               BeginRep();
-    // void               AddBytes(u64 bytes);
-    // void               EndRep();
-    // ~RepProfiler();
 } RepProfiler;
 
 RepProfiler repprofiler_new(cstr name, u64 maxRepeats);

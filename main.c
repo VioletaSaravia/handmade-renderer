@@ -4,7 +4,7 @@
 
 void        tcc_err(void *opaque, const char *msg) { printf(msg); }
 static bool load_dll() {
-    BeginBlock(2, "load_dll", __FILE__, __LINE__, 0);
+    block_begin(2, "load_dll", __FILE__, __LINE__, 0);
 
     GetLastWriteTime("game.c", &G->last_write);
 
@@ -58,7 +58,7 @@ static bool load_dll() {
     void (*new_quit)() = tcc_get_symbol(G->tcc, "quit");
     if (new_quit) G->quit = new_quit;
 
-    EndBlock();
+    block_end();
     return true;
 }
 
@@ -115,7 +115,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     G->metrics     = metrics_init();
     G->system_info = systeminfo_init();
     G->profiler    = profiler_new("Handmade Renderer");
-    BeginBlock(1, "Initialization", __FILE__, __LINE__, 0);
+    block_begin(1, "Initialization", __FILE__, __LINE__, 0);
     G->draw_queue = ALLOC_ARRAY(DrawCmd, 1024);
 
     QueryPerformanceFrequency(&G->freq);
@@ -155,7 +155,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
     if (G->init) G->init();
 
-    EndBlock();
+    block_end();
 
     RepProfiler rep = repprofiler_new("game loop", 1000);
     while (!G->shutdown) {
