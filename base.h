@@ -73,6 +73,9 @@ typedef int          i32;
 typedef unsigned int u32;
 typedef u32          col32;
 
+#define WHITE rgb(255, 255, 255)
+#define BLACK rgb(0, 0, 0)
+
 typedef long          i64;
 typedef unsigned long u64;
 
@@ -132,7 +135,17 @@ typedef union {
     struct {
         i32 w, h;
     };
+    struct {
+        i32 from, to;
+    };
 } v2i;
+
+v2i v2i_from_v2(v2 v) {
+    return (v2i){
+        .x = q8_to_i32(v.x),
+        .y = q8_to_i32(v.y),
+    };
+}
 
 typedef union {
     struct {
@@ -143,10 +156,26 @@ typedef union {
     };
 } v3;
 
+inline v3 v3_add(v3 a, v3 b) {
+    return (v3){
+        .x = a.x + b.x,
+        .y = a.y + b.y,
+        .z = a.z + b.z,
+    };
+}
+
+inline v3 v3_mul(v3 a, v3 b) {
+    return (v3){
+        .x = q8_mul64(a.x, b.x),
+        .y = q8_mul64(a.y, b.y),
+        .z = q8_mul64(a.z, b.z),
+    };
+}
+
 v2 v3_project(v3 v) {
     // Prevent division by zero: clamp z to a small minimum
     q8 min_z = 1; // raw q8 value of 1/256, smallest positive
-    q8 z = v.z > min_z ? v.z : min_z;
+    q8 z     = v.z > min_z ? v.z : min_z;
     return (v2){q8_div64(v.x, z), q8_div64(v.y, z)};
 }
 
@@ -234,11 +263,60 @@ char *string_format(Arena *a, char *fmt, ...);
 
 #define STR(str) (string){.text = str, .len = sizeof(str) - 1}
 
+// 3D
+
+typedef struct {
+    v3  *verts;
+    i32  verts_count;
+    v2i *edges;
+    i32  edges_count;
+} Mesh;
+
+typedef struct {
+    v3 pos, rot, scale;
+} Transform3D;
+
+static v3 cube_mesh[8] = {
+    {Q8(1) >> 1, Q8(-1) >> 1, Q8(1) >> 1},  {Q8(-1) >> 1, Q8(-1) >> 1, Q8(1) >> 1},
+    {Q8(-1) >> 1, Q8(1) >> 1, Q8(1) >> 1},  {Q8(1) >> 1, Q8(1) >> 1, Q8(1) >> 1},
+    {Q8(1) >> 1, Q8(-1) >> 1, Q8(-1) >> 1}, {Q8(-1) >> 1, Q8(-1) >> 1, Q8(-1) >> 1},
+    {Q8(-1) >> 1, Q8(1) >> 1, Q8(-1) >> 1}, {Q8(1) >> 1, Q8(1) >> 1, Q8(-1) >> 1},
+};
+
+static v2i cube_edges[12] = {
+    // Bottom face (z = -0.5)
+    {4, 5},
+    {5, 6},
+    {6, 7},
+    {7, 4},
+    // Top face (z = 0.5)
+    {0, 1},
+    {1, 2},
+    {2, 3},
+    {3, 0},
+    // Vertical edges connecting top to bottom
+    {0, 4},
+    {1, 5},
+    {2, 6},
+    {3, 7},
+};
+
+static Mesh cube = {
+    .verts       = cube_mesh,
+    .verts_count = 8,
+    .edges       = cube_edges,
+    .edges_count = 12,
+};
+
 // Collision
 
 typedef struct {
     q8 x, y, w, h;
 } rect;
+
+typedef struct {
+    i32 x, y, w, h;
+} i32rect;
 
 bool col_point_rect(v2 p, rect r) {
     return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
@@ -266,10 +344,8 @@ rect col_rect_rect_area(rect a, rect b) {
 void draw_text(char *text, i32 x, i32 y, col32 color);
 void draw_rect(rect r, col32 color);
 void draw_rect_outline(rect r, col32 color);
-void draw_circle(i32 x, i32 y, i32 r, col32 color);
-void draw_circle_outline(i32 x, i32 y, i32 r, col32 color);
-void draw_line(i32 x1, i32 y1, i32 x2, i32 y2, col32 color);
-void draw_arc(i32 x, i32 y, i32 r, rad from, rad to, col32 color);
+
+void render_line(v2i from, v2i to, col32 color);
 
 // GUI
 

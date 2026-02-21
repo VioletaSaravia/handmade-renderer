@@ -6,38 +6,30 @@ export Info game = {
 };
 
 struct Data {
-    v2i   camera_pos;
-    col32 fg, bg, text_light, text_dark;
-    col32 solid_tiles[4];
-    v3    obj[8];
-    i32   obj_count;
-    q8    angle;
-    v2i   tilemap_size;
-    u8  **tilemap;
-    q8    tile_size;
+    v2i         camera_pos;
+    col32       fg, bg, text_light, text_dark;
+    col32       solid_tiles[4];
+    Transform3D obj;
+    v2i         tilemap_size;
+    u8        **tilemap;
+    q8          tile_size;
 };
 
 export void init() {
     *data = (Data){
         .obj =
             {
-                (v3){Q8(1) >> 1, Q8(-1) >> 1, Q8(1)},
-                (v3){Q8(-1) >> 1, Q8(-1) >> 1, Q8(1)},
-                (v3){Q8(-1) >> 1, Q8(1) >> 1, Q8(1)},
-                (v3){Q8(1) >> 1, Q8(1) >> 1, Q8(1)},
-                (v3){Q8(1) >> 1, Q8(-1) >> 1, Q8(2)},
-                (v3){Q8(-1) >> 1, Q8(-1) >> 1, Q8(2)},
-                (v3){Q8(-1) >> 1, Q8(1) >> 1, Q8(2)},
-                (v3){Q8(1) >> 1, Q8(1) >> 1, Q8(2)},
+                .pos   = {0, 0, Q8(2)},
+                .rot   = {0},
+                .scale = {Q8(1), Q8(1), Q8(1)},
             },
-        .obj_count  = 8,
         .fg         = rgb(110, 124, 205),
         .bg         = rgb(51, 45, 116),
         .text_light = rgb(230, 240, 250),
         .text_dark  = rgb(20, 10, 10),
         .solid_tiles =
             {
-                rgb(0, 128, 128),
+                rgb(134, 180, 180),
                 rgb(128, 0, 128),
                 rgb(128, 128, 0),
                 rgb(0, 0, 128),
@@ -71,43 +63,19 @@ export void update(q8 dt) {
         }
     }
 
-    data->angle += q8_mul(Q8_PI, dt);
-    while (data->angle > Q8_TAU)
-        data->angle -= Q8_TAU;
-    while (data->angle < 0)
-        data->angle += Q8_TAU;
+    data->obj.rot.y += q8_mul(Q8_PI, dt);
+    while (data->obj.rot.y > Q8_TAU)
+        data->obj.rot.y -= Q8_TAU;
+    while (data->obj.rot.y < 0)
+        data->obj.rot.y += Q8_TAU;
 
-    // Compute the center of the cube
-    v3 center = {0, 0, 0};
-    for (i32 i = 0; i < data->obj_count; i++) {
-        center.x += data->obj[i].x;
-        center.y += data->obj[i].y;
-        center.z += data->obj[i].z;
-    }
-    center.x /= data->obj_count;
-    center.y /= data->obj_count;
-    center.z /= data->obj_count;
-
-    static v3 obj_rotated[8];
-    for (i32 i = 0; i < data->obj_count; i++) {
-        // Move vertex to local space (relative to cube center)
-        // TODO(violeta): Center cube data instead
-        v3 local = {
-            data->obj[i].x - center.x,
-            data->obj[i].y - center.y,
-            data->obj[i].z - center.z,
-        };
-        // Rotate around origin (which is now the cube's center)
-        v3 rotated = v3_rotate_xz(local, data->angle);
-        // Move back to world space
-        obj_rotated[i] = (v3){
-            rotated.x + center.x,
-            rotated.y + center.y,
-            rotated.z + center.z,
-        };
+    v3 *obj_transformed = alloc_temp(sizeof(v3) * 8);
+    for (i32 i = 0; i < cube.verts_count; i++) {
+        obj_transformed[i] = v3_add(
+            v3_rotate_xz(v3_mul(cube.verts[i], data->obj.scale), data->obj.rot.y), data->obj.pos);
     }
 
-    draw_mesh(obj_rotated, data->obj_count, rgb(255, 255, 255));
+    draw_mesh(obj_transformed, cube.verts_count, cube.edges, cube.edges_count, rgb(255, 255, 255));
 }
 
 export void quit() {}

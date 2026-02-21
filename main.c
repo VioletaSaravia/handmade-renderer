@@ -221,28 +221,15 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
                 switch (next.t) {
                 case DCT_MESH: {
+                    v2i *screen_verts = (v2i *)alloc_temp(sizeof(v2i) * next.count);
                     for (i32 v = 0; v < next.count; v++) {
-                        v3 *vert            = &next.vertices[v];
-                        v2  screen_coords_q = v2_screen(v3_project(*vert), G->screen_size);
-                        i32 x               = q8_to_i32(screen_coords_q.x);
-                        i32 y               = q8_to_i32(screen_coords_q.y);
+                        v3 n            = next.vertices[v];
+                        screen_verts[v] = v2i_from_v2(v2_screen(v3_project(n), G->screen_size));
+                    }
 
-                        // Draw a small square for the point
-                        rect r = {
-                            .x = x - 5,
-                            .y = y - 5,
-                            .w = 10,
-                            .h = 10,
-                        };
-                        for (i32 y_coord = r.y; y_coord < r.y + r.h; y_coord++) {
-                            for (i32 x_coord = r.x; x_coord < r.x + r.w; x_coord++) {
-                                if (x_coord >= 0 && x_coord < G->screen_size.w && y_coord >= 0 &&
-                                    y_coord < G->screen_size.h) {
-                                    i32 coord            = y_coord * G->screen_size.w + x_coord;
-                                    G->screen_buf[coord] = next.color;
-                                }
-                            }
-                        }
+                    for (i32 v = 0; v < next.edges_count; v++) {
+                        v2i edge = next.edges[v];
+                        render_line(screen_verts[edge.from], screen_verts[edge.to], WHITE);
                     }
                     break;
                 }

@@ -4,7 +4,7 @@
 #include "base.h"
 #include "profiler.h"
 
-typedef enum { DCT_RECT, DCT_RECT_OUTLINE, DCT_TEXT, DCT_MESH, DCT_COUNT } DrawCmdType;
+typedef enum { DCT_RECT, DCT_RECT_OUTLINE, DCT_TEXT, DCT_LINE, DCT_MESH, DCT_COUNT } DrawCmdType;
 
 typedef struct {
     DrawCmdType t;
@@ -20,9 +20,15 @@ typedef struct {
             rect r;
         };
 
+        struct { // line
+            v2 from, to;
+        };
+
         struct { // mesh
-            v3 *vertices;
-            i32 count;
+            v3  *vertices;
+            i32  count;
+            v2i *edges;
+            i32  edges_count;
         };
     };
 } DrawCmd;
@@ -65,10 +71,14 @@ import extern EngineData *G;
 
 Context *ctx() { return &G->ctx; }
 
-void draw_mesh(v3 *p, i32 count, col32 color) {
+void draw_mesh(v3 *p, i32 count, v2i *e, i32 edges_count, col32 color) {
     if (G->draw_count == G->draw_size) return;
-    G->draw_queue[G->draw_count++] =
-        (DrawCmd){.t = DCT_MESH, .vertices = p, .count = count, .color = color};
+    G->draw_queue[G->draw_count++] = (DrawCmd){.t           = DCT_MESH,
+                                               .vertices    = p,
+                                               .count       = count,
+                                               .edges       = e,
+                                               .edges_count = edges_count,
+                                               .color       = color};
 }
 
 void draw_rect(rect r, col32 color) {
@@ -157,9 +167,9 @@ void draw_arc(i32 x, i32 y, i32 r, rad from, rad to, col32 color) {
 
 i32 abs(i32 x) { return x < 0 ? -x : x; }
 
-void draw_line(i32 x1, i32 y1, i32 x2, i32 y2, col32 color) {
-    i32 dx = x2 - x1;
-    i32 dy = y2 - y1;
+void render_line(v2i from, v2i to, col32 color) {
+    i32 dx = to.x - from.x;
+    i32 dy = to.y - from.y;
 
     i32 steps = abs(dx) > abs(dy) ? abs(dx) : abs(dy);
     if (steps == 0) return;
@@ -167,8 +177,8 @@ void draw_line(i32 x1, i32 y1, i32 x2, i32 y2, col32 color) {
     f32 x_inc = (f32)dx / steps;
     f32 y_inc = (f32)dy / steps;
 
-    f32 x = (f32)x1;
-    f32 y = (f32)y1;
+    f32 x = (f32)from.x;
+    f32 y = (f32)from.y;
 
     for (i32 i = 0; i <= steps; i++) {
         if ((i16)x >= 0 && (i16)x < G->screen_size.w && (i16)y >= 0 && (i16)y < G->screen_size.h) {
