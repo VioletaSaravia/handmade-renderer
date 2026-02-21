@@ -1,6 +1,6 @@
 #pragma once
 
-// Forward-declare C standard library functions to suppress implicit declaration warnings
+// Forward declare for tcc >.<
 int  printf(const char *fmt, ...);
 int  vsnprintf(char *buf, unsigned long size, const char *fmt, va_list args);
 void abort(void);
@@ -14,14 +14,15 @@ void abort(void);
     } while (0)
 
 #define COL_RESET "\033[0m"
-#define COL_INFO "\033[32m"          // Green
-#define COL_WARN "\033[33m"          // Yellow
-#define COL_ERROR "\033[31m"         // Red
-#define COL_FATAL "\033[41m\033[97m" // White on Red background
+#define COL_INFO "\033[32m"          // green
+#define COL_WARN "\033[33m"          // yellow
+#define COL_ERROR "\033[31m"         // red
+#define COL_FATAL "\033[41m\033[97m" // white on red
 
 typedef const char *cstr;
 
 #define LIST_VAR "\n\t> "
+#define LIST_VAR2 "\t> "
 
 #define INFO(msg, ...) \
     printf(COL_INFO "[INFO]" COL_RESET "  [%s] " msg "\n", __func__, ##__VA_ARGS__)
@@ -272,9 +273,19 @@ typedef struct {
     i32  edges_count;
 } Mesh;
 
-typedef struct {
-    v3 pos, rot, scale;
-} Transform3D;
+typedef union {
+    q8 val[3][3];
+
+    struct { // 3d transform
+        v3 pos, rot, scale;
+    };
+} m3;
+
+const static m3 m3_id = {.val = {{Q8(1), 0, 0}, {0, Q8(1), 0}, {0, 0, Q8(1)}}};
+
+typedef q8 m4[4][4];
+
+const static m4 m4_id = {{Q8(1), 0, 0, 0}, {0, Q8(1), 0, 0}, {0, 0, Q8(1), 0}, {0, 0, 0, Q8(1)}};
 
 static v3 cube_mesh[8] = {
     {Q8(1) >> 1, Q8(-1) >> 1, Q8(1) >> 1},  {Q8(-1) >> 1, Q8(-1) >> 1, Q8(1) >> 1},
@@ -284,21 +295,7 @@ static v3 cube_mesh[8] = {
 };
 
 static v2i cube_edges[12] = {
-    // Bottom face (z = -0.5)
-    {4, 5},
-    {5, 6},
-    {6, 7},
-    {7, 4},
-    // Top face (z = 0.5)
-    {0, 1},
-    {1, 2},
-    {2, 3},
-    {3, 0},
-    // Vertical edges connecting top to bottom
-    {0, 4},
-    {1, 5},
-    {2, 6},
-    {3, 7},
+    {4, 5}, {5, 6}, {6, 7}, {7, 4}, {0, 1}, {1, 2}, {2, 3}, {3, 0}, {0, 4}, {1, 5}, {2, 6}, {3, 7},
 };
 
 static Mesh cube = {
@@ -389,17 +386,12 @@ typedef enum {
 } KeyState;
 
 typedef struct {
-    u64 permMemorySize, tempMemorySize;
-} AppInfo;
-
-typedef struct {
     bool  initialized;
     void *processHandle;
 } Metrics;
 
-u64 ReadPageFaultCount(Metrics);
-
 Metrics metrics_init();
+u64     ReadPageFaultCount(Metrics);
 
 u64 ReadCPUTimer();
 
@@ -408,17 +400,27 @@ u64 EstimateCPUTimerFreq();
 typedef struct {
     // System
     cstr processorArchitecture;
-    u32  numberOfProcessors, pageSize, allocationGranularity;
+    u32  numberOfProcessors;
+    u32  pageSize;
+    u32  allocationGranularity;
     f64  cpuFreq;
 
     // Memory
-    u64 totalPhys, availPhys, totalVirtual, availVirtual;
+    u64 totalPhys;
+    u64 availPhys;
+    u64 totalVirtual;
+    u64 availVirtual;
 
     // OS
-    u32 majorVersion, minorVersion, buildNumber, platformId;
+    u32 majorVersion;
+    u32 minorVersion;
+    u32 buildNumber;
+    u32 platformId;
 
     // GPU
-    cstr gpuName, gpuVendor, glVersion;
+    cstr gpuName;
+    cstr gpuVendor;
+    cstr glVersion;
 } SystemInfo;
 
 SystemInfo systeminfo_init();

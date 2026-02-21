@@ -119,7 +119,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     G->draw_queue = ALLOC_ARRAY(DrawCmd, G->draw_size);
 
     QueryPerformanceFrequency(&G->freq);
-    const f32 target_dt  = 1.0f / 75.0f;
+    const f32 target_dt  = 1.0f / 30.0f;
     f32       dt         = target_dt;
     f64       next_frame = now_seconds();
 
@@ -144,9 +144,10 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     RECT  wr    = {0, 0, G->screen_size.w, G->screen_size.h};
     AdjustWindowRect(&wr, style, false);
 
-    G->hwnd =
-        CreateWindow(G->game_info->name, G->game_info->name, style, CW_USEDEFAULT, CW_USEDEFAULT,
-                     wr.right - wr.left, wr.bottom - wr.top, 0, 0, hInstance, 0);
+    cstr window_name =
+        string_format(&G->ctx.perm, "%s %s", G->game_info->name, G->game_info->version);
+    G->hwnd = CreateWindow(G->game_info->name, window_name, style, CW_USEDEFAULT, CW_USEDEFAULT,
+                           wr.right - wr.left, wr.bottom - wr.top, 0, 0, hInstance, 0);
     if (!G->hwnd) return 0;
 
     if (G->init) G->init();

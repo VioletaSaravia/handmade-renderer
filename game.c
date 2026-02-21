@@ -1,23 +1,23 @@
 #include "base_win.c"
 
 export Info game = {
-    .name    = "Handmade Renderer",
+    .name    = "Software Renderer",
     .version = "0.1.0",
 };
 
 struct Data {
-    v2i         camera_pos;
-    col32       fg, bg, text_light, text_dark;
-    col32       solid_tiles[4];
-    Transform3D obj;
-    v2i         tilemap_size;
-    u8        **tilemap;
-    q8          tile_size;
+    v2i   camera_pos;
+    col32 fg, bg, text_light, text_dark;
+    col32 solid_tiles[4];
+    m3    transform;
+    v2i   tilemap_size;
+    u8  **tilemap;
+    q8    tile_size;
 };
 
 export void init() {
     *data = (Data){
-        .obj =
+        .transform =
             {
                 .pos   = {0, 0, Q8(2)},
                 .rot   = {0},
@@ -63,16 +63,18 @@ export void update(q8 dt) {
         }
     }
 
-    data->obj.rot.y += q8_mul(Q8_PI, dt);
-    while (data->obj.rot.y > Q8_TAU)
-        data->obj.rot.y -= Q8_TAU;
-    while (data->obj.rot.y < 0)
-        data->obj.rot.y += Q8_TAU;
+    // TODO(violeta): q8_clamp
+    data->transform.rot.y += q8_mul(Q8_PI, dt);
+    while (data->transform.rot.y > Q8_TAU)
+        data->transform.rot.y -= Q8_TAU;
+    while (data->transform.rot.y < 0)
+        data->transform.rot.y += Q8_TAU;
 
-    v3 *obj_transformed = alloc_temp(sizeof(v3) * 8);
+    v3 *obj_transformed = (v3 *)alloc_temp(sizeof(v3) * 8);
     for (i32 i = 0; i < cube.verts_count; i++) {
         obj_transformed[i] = v3_add(
-            v3_rotate_xz(v3_mul(cube.verts[i], data->obj.scale), data->obj.rot.y), data->obj.pos);
+            v3_rotate_xz(v3_mul(cube.verts[i], data->transform.scale), data->transform.rot.y),
+            data->transform.pos);
     }
 
     draw_mesh(obj_transformed, cube.verts_count, cube.edges, cube.edges_count, rgb(255, 255, 255));
