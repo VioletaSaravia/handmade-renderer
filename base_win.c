@@ -330,21 +330,22 @@ u64 ReadCPUTimer(void) {
 #if defined(__x86_64__) || defined(__amd64__) || defined(_M_X64) || defined(_M_AMD64) || \
     defined(__i386__) || defined(_M_IX86)
     // TCC doesn't support __rdtsc intrinsic; use inline asm instead
-    u32 lo, hi;
+    u32 lo = 0;
+    u32 hi = 0;
     __asm__ volatile("rdtsc" : "=a"(lo), "=d"(hi));
     return ((u64)hi << 32) | lo;
 
 #elif defined(__aarch64__)
     // ARMv8 (AArch64): use CNTVCT_EL0
-    uint64_t cnt;
+    u64 cnt = 0;
     __asm__ volatile("mrs %0, cntvct_el0" : "=r"(cnt));
     return cnt;
 
 #elif defined(__arm__)
     // ARMv7-A: use PMCCNTR (if enabled)
-    uint32_t cc;
+    u32 cc = 0;
     __asm__ volatile("mrc p15, 0, %0, c9, c13, 0" : "=r"(cc));
-    return (uint64_t)cc;
+    return (u64)cc;
 
 #else
     static_assert(false, "Unsupported architecture");
