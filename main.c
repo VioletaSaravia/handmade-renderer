@@ -58,17 +58,14 @@ cleanup:
 
 static void hot_reload() {
     FILETIME new_write = {0};
-    if (!GetLastWriteTime("game.c", &new_write)) {
-        return;
-    }
+    if (!GetLastWriteTime("game.c", &new_write)) return;
+    if (CompareFileTime(&new_write, &G->game.last_write) == 0) return;
 
-    if (CompareFileTime(&new_write, &G->game.last_write) != 0) {
-        GameDLL new_dll = load_dll();
-        if (!new_dll.tcc) return;
+    GameDLL new_dll = load_dll();
+    if (!new_dll.tcc) return;
 
-        tcc_delete(G->game.tcc);
-        G->game = new_dll;
-    }
+    tcc_delete(G->game.tcc);
+    G->game = new_dll;
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd, u32 message, WPARAM wParam, LPARAM lParam) {
@@ -89,11 +86,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, u32 message, WPARAM wParam, LPARAM lParam) {
 i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, i32 nCmdShow) {
     // SetProcessDPIAware();
     {
-        u64   max_memory = MB(8);
-        Arena perm       = {.data =
-                                VirtualAlloc(NULL, max_memory, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE),
-                            .used = 0,
-                            .cap  = max_memory};
+        Arena perm = arena_new(MB(8), NULL);
 
         G  = (EngineData *)alloc(sizeof(EngineData), &perm);
         *G = (EngineData){
@@ -104,14 +97,13 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             .prev_placement = {sizeof(WINDOWPLACEMENT)},
             .screen_size    = {.w = 640, .h = 360},
             .draw_size      = 1024,
+            .metrics        = metrics_init(),
+            .system_info    = systeminfo_init(),
+            .profiler       = profiler_new("Handmade Renderer"),
         };
-
-        ctx()->temp = (Arena){.data = alloc_perm(KB(64)), .used = 0, .cap = KB(64)};
+        ctx()->temp = arena_new(KB(64), &ctx()->perm);
     }
 
-    G->metrics     = metrics_init();
-    G->system_info = systeminfo_init();
-    G->profiler    = profiler_new("Handmade Renderer");
     BLOCK_BEGIN("init");
     G->draw_queue = ALLOC_ARRAY(DrawCmd, G->draw_size);
 
@@ -177,8 +169,31 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                 switch (G->msg.wParam) {
                 case VK_ESCAPE: DestroyWindow(G->hwnd); break;
                 case VK_F5: G->game.init(); break;
-
                 case VK_F11: FullscreenWindow(G->hwnd); break;
+
+                case VK_UP: G->keys[K_UP] = KS_JUST_PRESSED; break;
+                case VK_DOWN: G->keys[K_DOWN] = KS_JUST_PRESSED; break;
+                case VK_LEFT: G->keys[K_LEFT] = KS_JUST_PRESSED; break;
+                case VK_RIGHT: G->keys[K_RIGHT] = KS_JUST_PRESSED; break;
+                case 'W': G->keys[K_W] = KS_JUST_PRESSED; break;
+                case 'A': G->keys[K_A] = KS_JUST_PRESSED; break;
+                case 'R': G->keys[K_R] = KS_JUST_PRESSED; break;
+                case 'S': G->keys[K_S] = KS_JUST_PRESSED; break;
+
+                default: break;
+                }
+                break;
+
+            case WM_KEYUP:
+                switch (G->msg.wParam) {
+                case VK_UP: G->keys[K_UP] = KS_JUST_RELEASED; break;
+                case VK_DOWN: G->keys[K_DOWN] = KS_JUST_RELEASED; break;
+                case VK_LEFT: G->keys[K_LEFT] = KS_JUST_RELEASED; break;
+                case VK_RIGHT: G->keys[K_RIGHT] = KS_JUST_RELEASED; break;
+                case 'W': G->keys[K_W] = KS_JUST_RELEASED; break;
+                case 'A': G->keys[K_A] = KS_JUST_RELEASED; break;
+                case 'R': G->keys[K_R] = KS_JUST_RELEASED; break;
+                case 'S': G->keys[K_S] = KS_JUST_RELEASED; break;
 
                 default: break;
                 }

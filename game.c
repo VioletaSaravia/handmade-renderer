@@ -5,25 +5,28 @@ export Info game = {
     .version = "0.1.0",
 };
 
+#define ENTITY_MAX 20
+
+typedef struct {
+    i32 id;
+    m3  transform;
+} Entity;
+
 struct Data {
     v3    camera_pos;
     col32 fg, bg, text_light, text_dark;
     col32 solid_tiles[4];
-    m3    obj_transform;
-    Mesh *obj_mesh;
-    v2i   tilemap_size;
-    u8  **tilemap;
-    q8    tile_size;
+
+    handle level_mark;
+    m3    *obj_transform;
+    Mesh  *obj_mesh;
+    v2i    tilemap_size;
+    u8   **tilemap;
+    q8     tile_size;
 };
 
 export void init() {
     *data = (Data){
-        .obj_transform =
-            {
-                .pos   = {0, 0, Q8(2)},
-                .rot   = {0},
-                .scale = {Q8(1), Q8(1), Q8(1)},
-            },
         .obj_mesh   = &cube,
         .fg         = rgb(110, 124, 205),
         .bg         = rgb(51, 45, 116),
@@ -40,6 +43,15 @@ export void init() {
         .tilemap_size = (v2i){64, 64},
     };
 
+    data->level_mark    = arena_mark(&ctx()->perm);
+    data->obj_transform = ALLOC_ARRAY(m3, ENTITY_MAX);
+
+    for (i32 i = 0; i < ENTITY_MAX; i++) {
+        data->obj_transform[i]       = m3_id;
+        data->obj_transform[i].pos   = (v3){Q8((i % 5) - 2), Q8(0), Q8((i / 5) - 2)};
+        data->obj_transform[i].scale = (v3){Q8(1) >> 1, Q8(1) >> 1, Q8(1) >> 1};
+    }
+
     data->tilemap = ALLOC_ARRAY(u8 *, data->tilemap_size.y);
     for (i32 i = 0; i < data->tilemap_size.y; i++) {
         data->tilemap[i] = ALLOC_ARRAY(u8, data->tilemap_size.x);
@@ -53,6 +65,11 @@ export void init() {
 }
 
 export void update(q8 dt) {
+    if (G->keys[K_UP] == KS_PRESSED) data->camera_pos.z -= dt;
+    if (G->keys[K_DOWN] == KS_PRESSED) data->camera_pos.z += dt;
+    if (G->keys[K_LEFT] == KS_PRESSED) data->camera_pos.x += dt;
+    if (G->keys[K_RIGHT] == KS_PRESSED) data->camera_pos.x -= dt;
+
     for (i32 y = 0; y < G->screen_size.h / q8_to_i32(data->tile_size); y++) {
         for (i32 x = 0; x < G->screen_size.w / q8_to_i32(data->tile_size); x++) {
             i32 map_x = x % data->tilemap_size.x;
@@ -66,23 +83,28 @@ export void update(q8 dt) {
     }
 
     // TODO(violeta): q8_clamp
-    data->obj_transform.rot.y += q8_mul(Q8_PI, dt);
-    while (data->obj_transform.rot.y > Q8_TAU)
-        data->obj_transform.rot.y -= Q8_TAU;
-    while (data->obj_transform.rot.y < 0)
-        data->obj_transform.rot.y += Q8_TAU;
-
-    v3 *obj_trans = (v3 *)alloc_temp(sizeof(v3) * 8);
-    for (i32 i = 0; i < data->obj_mesh->verts_count; i++) {
-        obj_trans[i] =
-            v3_add(v3_add(v3_rotate_xz(v3_mul(data->obj_mesh->verts[i], data->obj_transform.scale),
-                                       data->obj_transform.rot.y),
-                          data->obj_transform.pos),
-                   data->camera_pos);
+    v3 **obj_trans = (v3 **)alloc_temp(sizeof(v3 *) * ENTITY_MAX);
+    for (i32 i = 0; i < ENTITY_MAX; i++) {
+        obj_trans[i] = (v3 *)alloc_temp(sizeof(v3) * data->obj_mesh->verts_count);
     }
+    for (i32 i = 0; i < ENTITY_MAX; i++) {
+        data->obj_transform[i].rot.y += q8_mul(Q8_PI, dt);
+        while (data->obj_transform[i].rot.y > Q8_TAU)
+            data->obj_transform[i].rot.y -= Q8_TAU;
+        while (data->obj_transform[i].rot.y < 0)
+            data->obj_transform[i].rot.y += Q8_TAU;
 
-    draw_mesh(obj_trans, data->obj_mesh->verts_count, data->obj_mesh->edges,
-              data->obj_mesh->edges_count, rgb(255, 255, 255));
+        for (i32 j = 0; j < data->obj_mesh->verts_count; j++) {
+            obj_trans[i][j] = v3_add(
+                v3_add(v3_rotate_xz(v3_mul(data->obj_mesh->verts[j], data->obj_transform[i].scale),
+                                    data->obj_transform[i].rot.y),
+                       data->obj_transform[i].pos),
+                data->camera_pos);
+        }
+
+        draw_mesh(obj_trans[i], data->obj_mesh->verts_count, data->obj_mesh->edges,
+                  data->obj_mesh->edges_count, rgb(255, 255, 255));
+    }
 }
 
 export void quit() {}

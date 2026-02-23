@@ -248,6 +248,11 @@ v2 v2_screen(v2 v, v2i screen) {
     };
 }
 
+// Data
+
+typedef i32 handle;
+u8         *os_alloc(i32 size);
+
 typedef struct {
     void *data;
     i32   used, cap;
@@ -260,11 +265,33 @@ typedef struct {
 
 Context *ctx();
 
-// Data
+u8 *alloc(i32 size, Arena *a) {
+    if (a->used + size > a->cap)
+        FATAL("Arena out of memory! Used: %d, Requested: %d, Capacity: %d", a->used, size, a->cap);
 
-u8 *alloc(i32 size, Arena *a);
-u8 *alloc_perm(i32 size);
-u8 *alloc_temp(i32 size);
+    u8 *result = (u8 *)a->data + a->used;
+    a->used += size;
+    return result;
+}
+
+Arena arena_new(i32 cap, Arena *parent) {
+    u8 *data = parent ? alloc(cap, parent) : os_alloc(cap);
+    if (!data) return (Arena){0};
+
+    return (Arena){
+        .data = data,
+        .used = 0,
+        .cap  = cap,
+    };
+}
+
+handle arena_mark(Arena *a) { return a->used; }
+void   arena_reset(Arena *a, handle mark) {
+    if (mark > a->used) return;
+    a->used = mark;
+}
+u8 *alloc_perm(i32 size) { return alloc(size, &ctx()->perm); }
+u8 *alloc_temp(i32 size) { return alloc(size, &ctx()->temp); }
 #define ALLOC(type) (type *)alloc_perm(sizeof(type))
 #define ALLOC_ARRAY(type, count) (type *)alloc_perm(sizeof(type) * (count))
 

@@ -201,18 +201,6 @@ void draw_text(char *text, i32 x, i32 y, col32 color) {
 
 void *image_read(char *path) { return LoadImage(NULL, path, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE); }
 
-u8 *alloc(i32 size, Arena *a) {
-    if (a->used + size > a->cap) {
-        assert(false && "Out of memory!");
-    }
-    u8 *result = (u8 *)a->data + a->used;
-    a->used += size;
-    return result;
-}
-
-u8 *alloc_perm(i32 size) { return alloc(size, &ctx()->perm); }
-u8 *alloc_temp(i32 size) { return alloc(size, &ctx()->temp); }
-
 char *string_format(Arena *a, char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
@@ -223,9 +211,9 @@ char *string_format(Arena *a, char *fmt, ...) {
     i32 needed = vsnprintf(NULL, 0, fmt, args);
     va_end(args);
 
-    char *result = alloc((size_t)needed + 1, a);
+    char *result = alloc((u64)needed + 1, a);
 
-    vsnprintf(result, (size_t)needed + 1, fmt, copy);
+    vsnprintf(result, (u64)needed + 1, fmt, copy);
     va_end(copy);
 
     return result;
@@ -499,4 +487,8 @@ void thread_barrier(void) {
             YieldProcessor();
         }
     }
+}
+
+u8 *os_alloc(i32 size) {
+    return (u8 *)VirtualAlloc(NULL, (SIZE_T)size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 }
