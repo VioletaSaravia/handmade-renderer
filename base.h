@@ -3,7 +3,7 @@
 // Forward declare for tcc >.<
 int  printf(const char *fmt, ...);
 int  vsnprintf(char *buf, unsigned long size, const char *fmt, va_list args);
-void abort(void);
+void abort();
 
 #define assert(expr)                                                             \
     do {                                                                         \
@@ -162,6 +162,14 @@ inline v3 v3_add(v3 a, v3 b) {
         .x = a.x + b.x,
         .y = a.y + b.y,
         .z = a.z + b.z,
+    };
+}
+
+inline v3 v3_sub(v3 a, v3 b) {
+    return (v3){
+        .x = a.x - b.x,
+        .y = a.y - b.y,
+        .z = a.z - b.z,
     };
 }
 

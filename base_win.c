@@ -34,22 +34,25 @@ typedef struct {
 } DrawCmd;
 
 typedef struct {
-    u8       *game_memory;
-    Context   ctx;
     TCCState *tcc;
-    char      text_buf[256];
 
     void (*init)();
-    Info *game_info;
+    Info *info;
     void (*update)(q8 dt);
     void (*quit)();
     i32 (*gamedata_size)();
-    i32 last_gamedata_size;
+    FILETIME last_write;
+
+} GameDLL;
+
+typedef struct {
+    Context ctx;
+    GameDLL game;
+    u8     *game_memory;
 
     bool            shutdown;
     MSG             msg;
     LARGE_INTEGER   freq;
-    FILETIME        last_write;
     WINDOWPLACEMENT prev_placement;
     v2              mouse_pos;
     KeyState        keys[K_COUNT];

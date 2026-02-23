@@ -1,75 +1,4 @@
-#define ENGINE_IMPL
-#include "base_win.c"
-#include "profiler.c"
-
-void tcc_err(void *opaque, const char *msg) { printf(msg); }
-
-static GameDLL load_dll() {
-    BLOCK_BEGIN("load_dll");
-    GameDLL result = {
-        .tcc = tcc_new(),
-    };
-    if (!result.tcc) goto cleanup;
-
-    GetLastWriteTime("game.c", &result.last_write);
-
-    tcc_set_error_func(result.tcc, NULL, tcc_err);
-
-    tcc_add_include_path(result.tcc, "include/winapi");
-    tcc_add_library_path(result.tcc, "lib");
-    tcc_add_library(result.tcc, "msvcrt");
-    tcc_add_library(result.tcc, "kernel32");
-    tcc_add_library(result.tcc, "user32");
-    tcc_add_library(result.tcc, "gdi32");
-
-    if (tcc_set_output_type(result.tcc, TCC_OUTPUT_MEMORY) == -1) goto cleanup;
-    if (tcc_add_file(result.tcc, "game.c") == -1) goto cleanup;
-    if (tcc_add_symbol(result.tcc, "G", &G) == -1) goto cleanup;
-    if (tcc_add_symbol(result.tcc, "data", &G->game_memory) == -1) goto cleanup;
-    if (tcc_relocate(result.tcc, TCC_RELOCATE_AUTO) == -1) goto cleanup;
-
-    result.info = tcc_get_symbol(result.tcc, "game");
-    if (!result.info) goto cleanup;
-
-    result.init = tcc_get_symbol(result.tcc, "init");
-    if (!result.init) goto cleanup;
-
-    result.update = tcc_get_symbol(result.tcc, "update");
-    if (!result.update) goto cleanup;
-
-    result.gamedata_size = tcc_get_symbol(result.tcc, "gamedata_size");
-    if (!result.gamedata_size) goto cleanup;
-
-    result.quit = tcc_get_symbol(result.tcc, "quit");
-    if (!result.quit) goto cleanup;
-
-    if (G->game.tcc && result.gamedata_size() != G->game.gamedata_size()) result.init();
-
-    BLOCK_END();
-    return result;
-
-cleanup:
-    if (result.tcc) tcc_delete(result.tcc);
-    printf("\n");
-    ERR("Couldn't load game.c");
-    BLOCK_END();
-    return (GameDLL){0};
-}
-
-static void hot_reload() {
-    FILETIME new_write = {0};
-    if (!GetLastWriteTime("game.c", &new_write)) {
-        return;
-    }
-
-    if (CompareFileTime(&new_write, &G->game.last_write) != 0) {
-        GameDLL new_dll = load_dll();
-        if (!new_dll.tcc) return;
-
-        tcc_delete(G->game.tcc);
-        G->game = new_dll;
-    }
-}
+#include "game.c"
 
 LRESULT CALLBACK WndProc(HWND hwnd, u32 message, WPARAM wParam, LPARAM lParam) {
     switch (message) {
@@ -109,22 +38,26 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
         ctx()->temp = (Arena){.data = alloc_perm(KB(64)), .used = 0, .cap = KB(64)};
     }
 
+    G->game = (GameDLL){
+        .init          = init,
+        .update        = update,
+        .quit          = quit,
+        .gamedata_size = gamedata_size,
+        .info          = &game,
+    };
+
     G->metrics     = metrics_init();
     G->system_info = systeminfo_init();
-    G->profiler    = profiler_new("Handmade Renderer");
-    BLOCK_BEGIN("init");
-    G->draw_queue = ALLOC_ARRAY(DrawCmd, G->draw_size);
+    G->draw_queue  = ALLOC_ARRAY(DrawCmd, G->draw_size);
 
     QueryPerformanceFrequency(&G->freq);
     const f32 target_dt  = 1.0f / 60.0f;
     f32       dt         = target_dt;
     f64       next_frame = now_seconds();
 
-    G->game = load_dll();
-    if (!G->game.tcc) return 1;
-
     G->game_memory = alloc_perm(G->game.gamedata_size());
     G->screen_buf  = ALLOC_ARRAY(u32, G->screen_size.w * G->screen_size.h);
+    data           = (Data *)G->game_memory;
 
     WNDCLASS wc = {
         .hInstance     = hInstance,
@@ -149,12 +82,9 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     if (!G->hwnd) return 0;
 
     if (G->game.init) G->game.init();
-    BLOCK_END();
 
     RepProfiler rep = repprofiler_new("game loop", 1000);
     while (!G->shutdown) {
-        hot_reload();
-        rep_begin(&rep);
         f64 frame_start = now_seconds();
 
         for (i32 i = 0; i < K_COUNT; i++) {
@@ -324,7 +254,6 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             ctx()->temp.used = 0;
             dt               = now_seconds() - frame_start;
         }
-        rep_end(&rep);
     }
 
     repprofiler_print(&rep);
