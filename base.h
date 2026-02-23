@@ -103,8 +103,29 @@ q8 q8_div(q8 a, q8 b) { return (q8)((a << 8) / b); }
 q8 q8_mul64(q8 a, q8 b) { return (q8)(((i64)a * (i64)b) >> 8); }
 q8 q8_div64(q8 a, q8 b) { return (q8)(((i64)a << 8) / b); }
 
-// q8 q8_add_f32(q8 a, f32 b) { return a + q8_from_f32(b); }
-// q8 q8_sub_f32(q8 a, f32 b) { return a - q8_from_f32(b); }
+// 1.23.6 fixed point
+// NOTE(violeta): Just an experiment, do not use
+typedef i32 q6;
+#define Q6(i32_val) ((q6)((i32_val) << 6))
+
+#define Q6_PI (q6)(804)
+#define Q6_TAU (q6)(1608)
+
+// q6  q6_from_f32(f32 val) { return val * 64.0f; }
+// f32 q6_to_f32(q6 val) { return (f32)val / 64.0f; }
+q6  q6_from_i32(i32 val) { return val << 6; }
+i32 q6_to_i32(q6 val) { return val >> 6; }
+
+q6 q6_floor(q6 val) { return val & ~0x3F; }
+q6 q6_ceil(q6 val) { return (val + 0x3F) & ~0x3F; }
+q6 q6_round(q6 val) { return (val + 0x20) & ~0x3F; }
+q6 q6_frac(q6 val) { return val & 0x3F; }
+
+q6 q6_mul(q6 a, q6 b) { return (q6)((a * b) >> 6); }
+q6 q6_div(q6 a, q6 b) { return (q6)((a << 6) / b); }
+
+q6 q6_mul64(q6 a, q6 b) { return (q6)(((i64)a * (i64)b) >> 6); }
+q6 q6_div64(q6 a, q6 b) { return (q6)(((i64)a << 6) / b); }
 
 typedef float f32;
 typedef f32   rad;

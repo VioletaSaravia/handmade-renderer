@@ -8,8 +8,10 @@ export Info game = {
 #define ENTITY_MAX 20
 
 typedef struct {
-    i32 id;
-    m3  transform;
+    i32   id;
+    m3    transform;
+    Mesh *mesh;
+    col32 color;
 } Entity;
 
 struct Data {
@@ -82,7 +84,6 @@ export void update(q8 dt) {
         }
     }
 
-    // TODO(violeta): q8_clamp
     v3 **obj_trans = (v3 **)alloc_temp(sizeof(v3 *) * ENTITY_MAX);
     for (i32 i = 0; i < ENTITY_MAX; i++) {
         obj_trans[i] = (v3 *)alloc_temp(sizeof(v3) * data->obj_mesh->verts_count);
@@ -105,6 +106,12 @@ export void update(q8 dt) {
         draw_mesh(obj_trans[i], data->obj_mesh->verts_count, data->obj_mesh->edges,
                   data->obj_mesh->edges_count, rgb(255, 255, 255));
     }
+
+    draw_text(string_format(&ctx()->temp, "Total memory used: %d KB", ctx()->perm.used / 1024), 10,
+              10, data->text_light);
+    draw_text(string_format(&ctx()->temp, "Game memory used: %d KB",
+                            (ctx()->perm.used - data->level_mark + sizeof(Data)) / 1024),
+              10, 30, data->text_light);
 }
 
 export void quit() {}

@@ -86,7 +86,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, u32 message, WPARAM wParam, LPARAM lParam) {
 i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, i32 nCmdShow) {
     // SetProcessDPIAware();
     {
-        Arena perm = arena_new(MB(8), NULL);
+        Arena perm = arena_new(MB(32), NULL);
 
         G  = (EngineData *)alloc(sizeof(EngineData), &perm);
         *G = (EngineData){
@@ -101,7 +101,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             .system_info    = systeminfo_init(),
             .profiler       = profiler_new("Handmade Renderer"),
         };
-        ctx()->temp = arena_new(KB(64), &ctx()->perm);
+        ctx()->temp = arena_new(MB(8), &ctx()->perm);
     }
 
     BLOCK_BEGIN("init");
