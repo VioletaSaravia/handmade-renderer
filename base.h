@@ -108,8 +108,8 @@ q8 q8_div64(q8 a, q8 b) { return (q8)(((i64)a << 8) / b); }
 typedef i32 q6;
 #define Q6(i32_val) ((q6)((i32_val) << 6))
 
-#define Q6_PI (q6)(804)
-#define Q6_TAU (q6)(1608)
+#define Q6_PI (q6)(1608 / 4)
+#define Q6_TAU (q6)(1608 / 2)
 
 // q6  q6_from_f32(f32 val) { return val * 64.0f; }
 // f32 q6_to_f32(q6 val) { return (f32)val / 64.0f; }
