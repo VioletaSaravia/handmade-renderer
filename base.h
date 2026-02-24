@@ -39,14 +39,6 @@ int  printf(cstr fmt, ...);
 int  vsnprintf(char *buf, u64 size, cstr fmt, va_list args);
 void abort();
 
-#define assert(expr)                                                             \
-    do {                                                                         \
-        if (!(expr)) {                                                           \
-            printf("Assertion failed: %s (%s:%d)\n", #expr, __FILE__, __LINE__); \
-            abort();                                                             \
-        }                                                                        \
-    } while (0)
-
 #define COL_RESET "\033[0m"
 #define COL_INFO "\033[32m"          // green
 #define COL_WARN "\033[33m"          // yellow
@@ -67,6 +59,13 @@ void abort();
         printf(COL_FATAL "[FATAL]" COL_RESET " [%s:%d] " msg "\n", __func__, __LINE__, \
                ##__VA_ARGS__);                                                         \
         abort();                                                                       \
+    } while (0);
+
+#define assert(expr)                              \
+    do {                                          \
+        if (!(expr)) {                            \
+            FATAL("Assertion failed: %s", #expr); \
+        }                                         \
     } while (0);
 
 // 1.23.8 fixed point
@@ -122,15 +121,29 @@ typedef f32   deg;
 typedef double f64;
 
 typedef union {
-    struct { q8 x, y; };
-    struct { q8 w, h; };
-    struct { q8 u, v; };
+    struct {
+        q8 x, y;
+    };
+    struct {
+        q8 w, h;
+    };
+    struct {
+        q8 u, v;
+    };
 } v2;
 
+typedef v2 uv;
+
 typedef union {
-    struct { i32 x, y; };
-    struct { i32 w, h; };
-    struct { i32 from, to; };
+    struct {
+        i32 x, y;
+    };
+    struct {
+        i32 w, h;
+    };
+    struct {
+        i32 from, to;
+    };
 } v2i;
 
 v2i v2i_from_v2(v2 v) {
@@ -142,14 +155,34 @@ v2i v2i_from_v2(v2 v) {
 
 i32 v2i_cross(v2i a, v2i b) { return a.y * b.x - a.x * b.y; }
 
+static col32 default_texture[64][64];
+
+void init_default_texture() {
+    for (i32 y = 0; y < 64; y++) {
+        for (i32 x = 0; x < 64; x++) {
+            u32 checker           = ((x / 8) % 2) ^ ((y / 8) % 2);
+            default_texture[y][x] = rgb(checker ? 200 : 50, checker ? 200 : 50, checker ? 200 : 50);
+        }
+    }
+}
+
 typedef union {
-    struct { q8 x, y, z; };
-    struct { q8 r, g, b; };
+    q8 val[3];
+    struct {
+        q8 x, y, z;
+    };
+    struct {
+        q8 r, g, b;
+    };
 } v3;
 
 typedef union {
-    struct { i32 x, y, z; };
-    struct { i32 a, b, c; };
+    struct {
+        i32 x, y, z;
+    };
+    struct {
+        i32 a, b, c;
+    };
 } v3i;
 
 inline v3 v3_add(v3 a, v3 b) {
@@ -313,10 +346,15 @@ char *string_format(Arena *a, char *fmt, ...);
 // 3D
 
 typedef struct {
-    v3  *verts;
-    i32  verts_count;
-    v3i *faces;
-    i32  faces_count;
+    i32 a, b, c;       // vertex indices
+    v2  uva, uvb, uvc; // texture coordinates per vertex (q8, range [0, Q8(1)])
+} Face;
+
+typedef struct {
+    v3   *verts;
+    i32   verts_count;
+    Face *faces;
+    i32   faces_count;
 } Mesh;
 
 typedef union {
@@ -340,9 +378,30 @@ static v3 cube_mesh[8] = {
     {Q8(-1) >> 1, Q8(1) >> 1, Q8(-1) >> 1}, {Q8(1) >> 1, Q8(1) >> 1, Q8(-1) >> 1},
 };
 
-static v3i cube_faces[12] = {
-    {0, 1, 2}, {0, 2, 3}, {5, 4, 7}, {5, 7, 6}, {4, 5, 1}, {4, 1, 0},
-    {3, 2, 6}, {3, 6, 7}, {4, 0, 3}, {4, 3, 7}, {1, 5, 6}, {1, 6, 2},
+#define UV0 {0, 0}
+#define UV1 {Q8(1), 0}
+#define UV2 {Q8(1), Q8(1)}
+#define UV3 {0, Q8(1)}
+
+static Face cube_faces[12] = {
+    // Front face  (+z)
+    {0, 1, 2, UV0, UV1, UV2},
+    {0, 2, 3, UV0, UV2, UV3},
+    // Back face   (-z)
+    {5, 4, 7, UV0, UV1, UV2},
+    {5, 7, 6, UV0, UV2, UV3},
+    // Top face    (-y)
+    {4, 5, 1, UV0, UV1, UV2},
+    {4, 1, 0, UV0, UV2, UV3},
+    // Bottom face (+y)
+    {3, 2, 6, UV0, UV1, UV2},
+    {3, 6, 7, UV0, UV2, UV3},
+    // Right face  (+x)
+    {4, 0, 3, UV0, UV1, UV2},
+    {4, 3, 7, UV0, UV2, UV3},
+    // Left face   (-x)
+    {1, 5, 6, UV0, UV1, UV2},
+    {1, 6, 2, UV0, UV2, UV3},
 };
 
 static Mesh cube = {

@@ -5,7 +5,7 @@ export Info game = {
     .version = "0.2.0",
 };
 
-#define ENTITY_MAX 1
+#define ENTITY_MAX 25000
 
 typedef struct {
     i32   id;
@@ -29,6 +29,7 @@ struct Data {
 
 export void init() {
     *data = (Data){
+        .camera_pos = {0, 0, Q8(3)},
         .obj_mesh   = &cube,
         .fg         = rgb(110, 124, 205),
         .bg         = rgb(51, 45, 116),
@@ -109,7 +110,7 @@ export void update(q8 dt) {
         }
 
         draw_mesh(obj_trans[i], data->obj_mesh->verts_count, data->obj_mesh->faces,
-                  data->obj_mesh->faces_count, rgb(255, 255, 255));
+                  data->obj_mesh->faces_count, rgb(216, 144, 235));
     }
 
     draw_text(string_format(&ctx()->temp, "Total memory used: %d KB", ctx()->perm.used / 1024), 10,

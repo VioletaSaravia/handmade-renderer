@@ -84,6 +84,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, u32 message, WPARAM wParam, LPARAM lParam) {
 }
 
 i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, i32 nCmdShow) {
+    init_default_texture();
+
     // SetProcessDPIAware();
     {
         Arena perm = arena_new(MB(32), NULL);
@@ -237,22 +239,26 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                         v3 n            = next.vertices[v];
                         screen_verts[v] = v2i_from_v2(v2_screen(v3_project(n), G->screen_size));
                     }
-                    if (next.faces && next.faces_count > 0) {
-                        for (i32 f = 0; f < next.faces_count; f++) {
-                            v3i face = next.faces[f];
+                    if (!next.faces || next.faces_count == 0) break;
 
-                            {
-                                v2i sa      = screen_verts[face.a];
-                                v2i sb      = screen_verts[face.b];
-                                v2i sc      = screen_verts[face.c];
-                                i32 cross2d = v2i_cross((v2i){.x = sb.x - sa.x, .y = sb.y - sa.y},
-                                                        (v2i){.x = sc.x - sa.x, .y = sc.y - sa.y});
-                                if (cross2d <= 0) continue;
-                            }
+                    for (i32 f = 0; f < next.faces_count; f++) {
+                        Face face = next.faces[f];
 
-                            render_filled_triangle(screen_verts[face.a], screen_verts[face.b],
-                                                   screen_verts[face.c], next.color);
+                        {
+                            v2i sa      = screen_verts[face.a];
+                            v2i sb      = screen_verts[face.b];
+                            v2i sc      = screen_verts[face.c];
+                            i32 cross2d = v2i_cross((v2i){.x = sb.x - sa.x, .y = sb.y - sa.y},
+                                                    (v2i){.x = sc.x - sa.x, .y = sc.y - sa.y});
+                            if (cross2d >= 0) continue;
                         }
+
+                        render_textured_triangle(screen_verts[face.a], screen_verts[face.b],
+                                                 screen_verts[face.c], face.uva, face.uvb, face.uvc,
+                                                 (v3){next.vertices[face.a].z,
+                                                      next.vertices[face.b].z,
+                                                      next.vertices[face.c].z},
+                                                 (col32 *)default_texture, (v2i){64, 64});
                     }
 
                     break;
