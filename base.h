@@ -140,6 +140,8 @@ v2i v2i_from_v2(v2 v) {
     };
 }
 
+i32 v2i_cross(v2i a, v2i b) { return a.y * b.x - a.x * b.y; }
+
 typedef union {
     struct { q8 x, y, z; };
     struct { q8 r, g, b; };

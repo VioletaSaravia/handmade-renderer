@@ -237,18 +237,16 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                         v3 n            = next.vertices[v];
                         screen_verts[v] = v2i_from_v2(v2_screen(v3_project(n), G->screen_size));
                     }
-
                     if (next.faces && next.faces_count > 0) {
                         for (i32 f = 0; f < next.faces_count; f++) {
                             v3i face = next.faces[f];
 
-                            // Back-face culling in screen space
                             {
                                 v2i sa      = screen_verts[face.a];
                                 v2i sb      = screen_verts[face.b];
                                 v2i sc      = screen_verts[face.c];
-                                i32 cross2d = (sb.x - sa.x) * (sc.y - sa.y) -
-                                              (sb.y - sa.y) * (sc.x - sa.x);
+                                i32 cross2d = v2i_cross((v2i){.x = sb.x - sa.x, .y = sb.y - sa.y},
+                                                        (v2i){.x = sc.x - sa.x, .y = sc.y - sa.y});
                                 if (cross2d <= 0) continue;
                             }
 
