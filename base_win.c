@@ -244,17 +244,17 @@ bool gui_toggle(char *name, q8 x, q8 y, bool *val) {
 
 // Manually declare what we need instead of Psapi.h
 typedef struct {
-    DWORD  cb;
-    DWORD  PageFaultCount;
-    SIZE_T PeakWorkingSetSize;
-    SIZE_T WorkingSetSize;
-    SIZE_T QuotaPeakPagedPoolUsage;
-    SIZE_T QuotaPagedPoolUsage;
-    SIZE_T QuotaPeakNonPagedPoolUsage;
-    SIZE_T QuotaNonPagedPoolUsage;
-    SIZE_T PagefileUsage;
-    SIZE_T PeakPagefileUsage;
-    SIZE_T PrivateUsage;
+    u32  cb;
+    u32  PageFaultCount;
+    u64 PeakWorkingSetSize;
+    u64 WorkingSetSize;
+    u64 QuotaPeakPagedPoolUsage;
+    u64 QuotaPagedPoolUsage;
+    u64 QuotaPeakNonPagedPoolUsage;
+    u64 QuotaNonPagedPoolUsage;
+    u64 PagefileUsage;
+    u64 PeakPagefileUsage;
+    u64 PrivateUsage;
 } MY_PROCESS_MEMORY_COUNTERS_EX;
 
 static f64 now_seconds() {
@@ -264,7 +264,7 @@ static f64 now_seconds() {
 }
 
 // TCC needs these declared as regular C functions with __stdcall
-import BOOL __stdcall K32GetProcessMemoryInfo(HANDLE, MY_PROCESS_MEMORY_COUNTERS_EX *, DWORD);
+import BOOL __stdcall K32GetProcessMemoryInfo(HANDLE, MY_PROCESS_MEMORY_COUNTERS_EX *, u32);
 import BOOL __stdcall GlobalMemoryStatusEx(MEMORYSTATUSEX *);
 
 #undef EXPORT
@@ -491,4 +491,56 @@ void thread_barrier(void) {
 
 u8 *os_alloc(i32 size) {
     return (u8 *)VirtualAlloc(NULL, (SIZE_T)size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+}
+
+void render_filled_triangle(v2i p0, v2i p1, v2i p2, col32 color) {
+    // Sort vertices by y coordinate (p0.y <= p1.y <= p2.y)
+    if (p0.y > p1.y) {
+        v2i tmp = p0;
+        p0      = p1;
+        p1      = tmp;
+    }
+    if (p0.y > p2.y) {
+        v2i tmp = p0;
+        p0      = p2;
+        p2      = tmp;
+    }
+    if (p1.y > p2.y) {
+        v2i tmp = p1;
+        p1      = p2;
+        p2      = tmp;
+    }
+
+    i32 total_height = p2.y - p0.y;
+    if (total_height == 0) return;
+
+    for (i32 y = p0.y; y <= p2.y; y++) {
+        if (y < 0 || y >= G->screen_size.h) continue;
+
+        bool second_half    = (y > p1.y) || (p1.y == p0.y);
+        i32  segment_height = second_half ? (p2.y - p1.y) : (p1.y - p0.y);
+        if (segment_height == 0) continue;
+
+        f32 alpha = (f32)(y - p0.y) / (f32)total_height;
+        f32 beta  = second_half ? (f32)(y - p1.y) / (f32)segment_height
+                                : (f32)(y - p0.y) / (f32)segment_height;
+
+        i32 xa = (i32)(p0.x + (p2.x - p0.x) * alpha);
+        i32 xb =
+            second_half ? (i32)(p1.x + (p2.x - p1.x) * beta) : (i32)(p0.x + (p1.x - p0.x) * beta);
+
+        if (xa > xb) {
+            i32 tmp = xa;
+            xa      = xb;
+            xb      = tmp;
+        }
+
+        // Clamp to screen
+        if (xa < 0) xa = 0;
+        if (xb >= G->screen_size.w) xb = G->screen_size.w - 1;
+
+        for (i32 x = xa; x <= xb; x++) {
+            G->screen_buf[y * G->screen_size.w + x] = color;
+        }
+    }
 }

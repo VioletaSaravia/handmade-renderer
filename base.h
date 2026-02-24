@@ -1,8 +1,42 @@
 #pragma once
 
+#define export __declspec(dllexport)
+#define import __declspec(dllimport)
+
+#define global static
+#define persist static
+#define internal static
+
+typedef const char *cstr;
+
+typedef char          i8;
+typedef unsigned char u8;
+typedef u8 bool;
+#define false 0
+#define true 1
+
+typedef short          i16;
+typedef unsigned short u16;
+
+typedef int          i32;
+typedef unsigned int u32;
+typedef u32          col32;
+#define rgb(r, g, b) ((col32)(((r) << 16) | ((g) << 8) | (b)))
+#define rgba(r, g, b, a) ((col32)(((a) << 24) | ((r) << 16) | ((g) << 8) | (b)))
+
+#define WHITE rgb(255, 255, 255)
+#define BLACK rgb(0, 0, 0)
+
+typedef long          i64;
+typedef unsigned long u64;
+
+#define KB(n) ((n) * 1024)
+#define MB(n) (KB(n) * 1024)
+#define GB(n) (MB(n) * 1024)
+
 // Forward declare for tcc >.<
-int  printf(const char *fmt, ...);
-int  vsnprintf(char *buf, unsigned long size, const char *fmt, va_list args);
+int  printf(cstr fmt, ...);
+int  vsnprintf(char *buf, u64 size, cstr fmt, va_list args);
 void abort();
 
 #define assert(expr)                                                             \
@@ -19,8 +53,6 @@ void abort();
 #define COL_ERROR "\033[31m"         // red
 #define COL_FATAL "\033[41m\033[97m" // white on red
 
-typedef const char *cstr;
-
 #define LIST_VAR "\n\t> "
 #define LIST_VAR2 "\t> "
 
@@ -36,49 +68,6 @@ typedef const char *cstr;
                ##__VA_ARGS__);                                                         \
         abort();                                                                       \
     } while (0);
-
-#define global static
-#define persist static
-#define internal static
-
-typedef struct {
-    char *name;
-    char *version;
-} Info;
-
-#define KB(n) ((n) * 1024)
-#define MB(n) (KB(n) * 1024)
-#define GB(n) (MB(n) * 1024)
-
-#define export __declspec(dllexport)
-#define import __declspec(dllimport)
-
-typedef struct Data Data;
-#ifndef ENGINE_IMPL
-import extern Data *data;
-#endif
-
-#define rgb(r, g, b) ((col32)(((r) << 16) | ((g) << 8) | (b)))
-#define rgba(r, g, b, a) ((col32)(((a) << 24) | ((r) << 16) | ((g) << 8) | (b)))
-
-typedef char          i8;
-typedef unsigned char u8;
-typedef u8 bool;
-#define false 0
-#define true 1
-
-typedef short          i16;
-typedef unsigned short u16;
-
-typedef int          i32;
-typedef unsigned int u32;
-typedef u32          col32;
-
-#define WHITE rgb(255, 255, 255)
-#define BLACK rgb(0, 0, 0)
-
-typedef long          i64;
-typedef unsigned long u64;
 
 // 1.23.8 fixed point
 typedef i32 q8;
@@ -104,7 +93,6 @@ q8 q8_mul64(q8 a, q8 b) { return (q8)(((i64)a * (i64)b) >> 8); }
 q8 q8_div64(q8 a, q8 b) { return (q8)(((i64)a << 8) / b); }
 
 // 1.23.6 fixed point
-// NOTE(violeta): Just an experiment, do not use
 typedef i32 q6;
 #define Q6(i32_val) ((q6)((i32_val) << 6))
 
@@ -133,33 +121,16 @@ typedef f32   deg;
 
 typedef double f64;
 
-typedef struct {
-    u8 *text;
-    i32 len;
-} string;
-
 typedef union {
-    struct {
-        q8 x, y;
-    };
-    struct {
-        q8 w, h;
-    };
-    struct {
-        q8 u, v;
-    };
+    struct { q8 x, y; };
+    struct { q8 w, h; };
+    struct { q8 u, v; };
 } v2;
 
 typedef union {
-    struct {
-        i32 x, y;
-    };
-    struct {
-        i32 w, h;
-    };
-    struct {
-        i32 from, to;
-    };
+    struct { i32 x, y; };
+    struct { i32 w, h; };
+    struct { i32 from, to; };
 } v2i;
 
 v2i v2i_from_v2(v2 v) {
@@ -170,13 +141,14 @@ v2i v2i_from_v2(v2 v) {
 }
 
 typedef union {
-    struct {
-        q8 x, y, z;
-    };
-    struct {
-        q8 r, g, b;
-    };
+    struct { q8 x, y, z; };
+    struct { q8 r, g, b; };
 } v3;
+
+typedef union {
+    struct { i32 x, y, z; };
+    struct { i32 a, b, c; };
+} v3i;
 
 inline v3 v3_add(v3 a, v3 b) {
     return (v3){
@@ -199,6 +171,18 @@ inline v3 v3_mul(v3 a, v3 b) {
         .x = q8_mul64(a.x, b.x),
         .y = q8_mul64(a.y, b.y),
         .z = q8_mul64(a.z, b.z),
+    };
+}
+
+inline q8 v3_dot(v3 a, v3 b) {
+    return q8_mul64(a.x, b.x) + q8_mul64(a.y, b.y) + q8_mul64(a.z, b.z);
+}
+
+inline v3 v3_cross(v3 a, v3 b) {
+    return (v3){
+        .x = q8_mul64(a.y, b.z) - q8_mul64(a.z, b.y),
+        .y = q8_mul64(a.z, b.x) - q8_mul64(a.x, b.z),
+        .z = q8_mul64(a.x, b.y) - q8_mul64(a.y, b.x),
     };
 }
 
@@ -316,8 +300,12 @@ u8 *alloc_temp(i32 size) { return alloc(size, &ctx()->temp); }
 #define ALLOC(type) (type *)alloc_perm(sizeof(type))
 #define ALLOC_ARRAY(type, count) (type *)alloc_perm(sizeof(type) * (count))
 
-char *string_format(Arena *a, char *fmt, ...);
+typedef struct {
+    u8 *text;
+    i32 len;
+} string;
 
+char *string_format(Arena *a, char *fmt, ...);
 #define STR(str) (string){.text = str, .len = sizeof(str) - 1}
 
 // 3D
@@ -392,7 +380,7 @@ rect col_rect_rect_area(rect a, rect b) {
     return result;
 }
 
-// Debug Drawing
+// Debug
 
 void draw_text(char *text, i32 x, i32 y, col32 color);
 void draw_rect(rect r, col32 color);
@@ -495,3 +483,13 @@ void systeminfo_print(SystemInfo info) {
     printf("\t> Total Virtual Memory: \t%llu MB\n", info.totalVirtual / (1024 * 1024));
     printf("\t> Available Virtual Memory: \t%llu MB\n", info.availVirtual / (1024 * 1024));
 }
+
+typedef struct Data Data;
+#ifndef ENGINE_IMPL
+import extern Data *data;
+#endif
+
+typedef struct {
+    cstr name;
+    cstr version;
+} Info;
