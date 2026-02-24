@@ -245,6 +245,53 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                 DrawCmd next = G->draw_queue[i];
 
                 switch (next.t) {
+                case DCT_MESH_WIREFRAME: {
+                    v2i *screen_verts = (v2i *)alloc_temp(sizeof(v2i) * next.count);
+                    for (i32 v = 0; v < next.count; v++) {
+                        v3 n            = next.vertices[v];
+                        screen_verts[v] = v2i_from_v2(v2_screen(v3_project(n), G->screen_size));
+                    }
+
+                    for (i32 v = 0; v < next.edges_count; v++) {
+                        v2i edge = next.edges[v];
+                        render_line(screen_verts[edge.from], screen_verts[edge.to], WHITE);
+                    }
+                    break;
+                }
+                case DCT_MESH_SOLID: {
+                    v2i *screen_verts  = (v2i *)alloc_temp(sizeof(v2i) * next.count);
+                    q8  *transformed_z = (q8 *)alloc_temp(sizeof(q8) * next.count);
+                    for (i32 v = 0; v < next.count; v++) {
+                        v3 n = v3_mul(next.vertices[v], next.transform.scale);
+                        n    = v3_rotate_xz(n, next.transform.rot.y);
+                        n    = v3_add(n, next.transform.pos);
+                        n    = v3_add(n, *(v3 *)G->game_memory);
+
+                        transformed_z[v] = n.z;
+                        v2 vec           = v3_project(n);
+                        vec              = v2_screen(vec, G->screen_size);
+                        screen_verts[v]  = v2i_from_v2(vec);
+                    }
+                    if (!next.faces || next.faces_count == 0) break;
+
+                    for (i32 f = 0; f < next.faces_count; f++) {
+                        Face face = next.faces[f];
+
+                        {
+                            v2i sa      = screen_verts[face.a];
+                            v2i sb      = screen_verts[face.b];
+                            v2i sc      = screen_verts[face.c];
+                            i32 cross2d = v2i_cross((v2i){.x = sb.x - sa.x, .y = sb.y - sa.y},
+                                                    (v2i){.x = sc.x - sa.x, .y = sc.y - sa.y});
+                            if (cross2d >= 0) continue;
+                        }
+
+                        render_filled_triangle(screen_verts[face.a], screen_verts[face.b],
+                                               screen_verts[face.c], next.color);
+                    }
+
+                    break;
+                }
                 case DCT_MODEL: {
                     v2i *screen_verts  = (v2i *)alloc_temp(sizeof(v2i) * next.count);
                     q8  *transformed_z = (q8 *)alloc_temp(sizeof(q8) * next.count);

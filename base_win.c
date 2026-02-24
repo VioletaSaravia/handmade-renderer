@@ -9,30 +9,33 @@ typedef enum {
     DCT_RECT_OUTLINE,
     DCT_TEXT,
     DCT_LINE,
-    DCT_MESH,
+    DCT_MESH_WIREFRAME,
+    DCT_MESH_SOLID,
     DCT_MODEL,
     DCT_COUNT
 } DrawCmdType;
 
 typedef struct {
     DrawCmdType t;
-    col32       color;
 
     union {
         struct { // text
+            col32 color;
             char *text;
             i32   x, y;
         };
 
         struct { // rect
-            rect r;
+            col32 color;
+            rect  r;
         };
 
         struct { // line
-            v2 from, to;
+            col32 color;
+            v2    from, to;
         };
 
-        struct { // model/mesh
+        struct { // model
             v3    *vertices;
             i32    count;
             Face  *faces;
@@ -40,6 +43,15 @@ typedef struct {
             col32 *tex;
             v2i    tex_size;
             m3     transform;
+        };
+
+        struct { // mesh
+            col32 color;
+            v3   *vertices;
+            i32   count;
+            v2i  *edges;
+            i32   edges_count;
+            m3    transform;
         };
     };
 } DrawCmd;
@@ -85,13 +97,23 @@ import extern EngineData *G;
 
 Context *ctx() { return &G->ctx; }
 
-void draw_mesh(v3 *verts, i32 verts_count, Face *faces, i32 faces_count, col32 color) {
+void draw_wireframe(v3 *verts, i32 verts_count, v2i *edges, i32 edges_count, col32 color) {
     if (G->draw_count == G->draw_size) return;
-    G->draw_queue[G->draw_count++] = (DrawCmd){.t           = DCT_MESH,
+    G->draw_queue[G->draw_count++] = (DrawCmd){.t           = DCT_MESH_WIREFRAME,
                                                .vertices    = verts,
                                                .count       = verts_count,
-                                               .faces       = faces,
-                                               .faces_count = faces_count,
+                                               .edges       = edges,
+                                               .edges_count = edges_count,
+                                               .color       = color};
+}
+
+void draw_mesh(v3 *verts, i32 verts_count, v2i *edges, i32 edges_count, col32 color) {
+    if (G->draw_count == G->draw_size) return;
+    G->draw_queue[G->draw_count++] = (DrawCmd){.t           = DCT_MESH_SOLID,
+                                               .vertices    = verts,
+                                               .count       = verts_count,
+                                               .edges       = edges,
+                                               .edges_count = edges_count,
                                                .color       = color};
 }
 
