@@ -5,7 +5,7 @@ export Info game = {
     .version = "0.1.0",
 };
 
-#define ENTITY_MAX 20
+#define ENTITY_MAX 1
 
 typedef struct {
     i32   id;
@@ -53,6 +53,10 @@ export void init() {
         data->obj_transform[i].pos   = (v3){Q8((i % 5) - 2), Q8(0), Q8((i / 5) - 2)};
         data->obj_transform[i].scale = (v3){Q8(1) >> 1, Q8(1) >> 1, Q8(1) >> 1};
     }
+
+    data->obj_transform[0]       = m3_id;
+    data->obj_transform[0].pos   = (v3){0, 0, Q8(1)};
+    data->obj_transform[0].scale = (v3){Q8(1) >> 1, Q8(1) >> 1, Q8(1) >> 1};
 
     data->tilemap = ALLOC_ARRAY(u8 *, data->tilemap_size.y);
     for (i32 i = 0; i < data->tilemap_size.y; i++) {
