@@ -38,6 +38,7 @@ typedef unsigned long u64;
 int  printf(cstr fmt, ...);
 int  vsnprintf(char *buf, u64 size, cstr fmt, va_list args);
 void abort();
+void qsort(void *ptr, u64 count, u64 size, i32 (*comp)(const void *, const void *));
 
 #define COL_RESET "\033[0m"
 #define COL_INFO "\033[32m"          // green
@@ -155,13 +156,24 @@ v2i v2i_from_v2(v2 v) {
 
 i32 v2i_cross(v2i a, v2i b) { return a.y * b.x - a.x * b.y; }
 
-static col32 default_texture[64][64];
+typedef struct {
+    u32 *data;
+    v2i  size;
+} Texture;
+
+static col32 default_texture_data[64][64];
+
+static Texture default_texture = {
+    .data = (u32 *)default_texture_data,
+    .size = {.x = 64, .y = 64},
+};
 
 void init_default_texture() {
     for (i32 y = 0; y < 64; y++) {
         for (i32 x = 0; x < 64; x++) {
-            u32 checker           = ((x / 8) % 2) ^ ((y / 8) % 2);
-            default_texture[y][x] = rgb(checker ? 200 : 50, checker ? 200 : 50, checker ? 200 : 50);
+            u32 checker = ((x / 8) % 2) ^ ((y / 8) % 2);
+            default_texture_data[y][x] =
+                rgb(checker ? 200 : 50, checker ? 200 : 50, checker ? 200 : 50);
         }
     }
 }

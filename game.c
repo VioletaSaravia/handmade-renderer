@@ -8,10 +8,10 @@ export Info game = {
 #define ENTITY_MAX 25000
 
 typedef struct {
-    i32   id;
-    m3    transform;
-    Mesh *mesh;
-    col32 color;
+    i32      id;
+    m3       transform;
+    Mesh    *mesh;
+    Texture *tex;
 } Entity;
 
 struct Data {
@@ -19,18 +19,21 @@ struct Data {
     col32 fg, bg, text_light, text_dark;
     col32 solid_tiles[4];
 
-    handle level_mark;
-    m3    *obj_transform;
-    Mesh  *obj_mesh;
-    v2i    tilemap_size;
-    u8   **tilemap;
-    q8     tile_size;
+    handle   level_mark;
+    m3      *obj_transform;
+    Mesh    *obj_mesh;
+    Texture *obj_tex;
+    v2i      tilemap_size;
+    u8     **tilemap;
+    q8       tile_size;
 };
 
 export void init() {
+    init_default_texture();
     *data = (Data){
         .camera_pos = {0, 0, Q8(3)},
         .obj_mesh   = &cube,
+        .obj_tex    = &default_texture,
         .fg         = rgb(110, 124, 205),
         .bg         = rgb(51, 45, 116),
         .text_light = rgb(230, 240, 250),
@@ -89,10 +92,10 @@ export void update(q8 dt) {
         }
     }
 
-    v3 **obj_trans = (v3 **)alloc_temp(sizeof(v3 *) * ENTITY_MAX);
-    for (i32 i = 0; i < ENTITY_MAX; i++) {
-        obj_trans[i] = (v3 *)alloc_temp(sizeof(v3) * data->obj_mesh->verts_count);
-    }
+    // v3 **obj_trans = (v3 **)alloc_temp(sizeof(v3 *) * ENTITY_MAX);
+    // for (i32 i = 0; i < ENTITY_MAX; i++) {
+    //     obj_trans[i] = (v3 *)alloc_temp(sizeof(v3) * data->obj_mesh->verts_count);
+    // }
 
     for (i32 i = 0; i < ENTITY_MAX; i++) {
         data->obj_transform[i].rot.y += q8_mul(Q8_PI, dt);
@@ -101,16 +104,16 @@ export void update(q8 dt) {
         while (data->obj_transform[i].rot.y < 0)
             data->obj_transform[i].rot.y += Q8_TAU;
 
-        for (i32 j = 0; j < data->obj_mesh->verts_count; j++) {
-            obj_trans[i][j] = v3_add(
-                v3_add(v3_rotate_xz(v3_mul(data->obj_mesh->verts[j], data->obj_transform[i].scale),
-                                    data->obj_transform[i].rot.y),
-                       data->obj_transform[i].pos),
-                data->camera_pos);
-        }
+        // for (i32 j = 0; j < data->obj_mesh->verts_count; j++) {
+        //     obj_trans[i][j] = v3_add(
+        //         v3_add(v3_rotate_xz(v3_mul(data->obj_mesh->verts[j],
+        //         data->obj_transform[i].scale),
+        //                             data->obj_transform[i].rot.y),
+        //                data->obj_transform[i].pos),
+        //         data->camera_pos);
+        // }
 
-        draw_mesh(obj_trans[i], data->obj_mesh->verts_count, data->obj_mesh->faces,
-                  data->obj_mesh->faces_count, rgb(216, 144, 235));
+        draw_model(data->obj_mesh, data->obj_tex, data->obj_transform[i]);
     }
 
     draw_text(string_format(&ctx()->temp, "Total memory used: %d KB", ctx()->perm.used / 1024), 10,

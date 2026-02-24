@@ -4,7 +4,15 @@
 #include "base.h"
 #include "profiler.h"
 
-typedef enum { DCT_RECT, DCT_RECT_OUTLINE, DCT_TEXT, DCT_LINE, DCT_MESH, DCT_COUNT } DrawCmdType;
+typedef enum {
+    DCT_RECT,
+    DCT_RECT_OUTLINE,
+    DCT_TEXT,
+    DCT_LINE,
+    DCT_MESH,
+    DCT_MODEL,
+    DCT_COUNT
+} DrawCmdType;
 
 typedef struct {
     DrawCmdType t;
@@ -24,11 +32,14 @@ typedef struct {
             v2 from, to;
         };
 
-        struct { // mesh
-            v3   *vertices;
-            i32   count;
-            Face *faces;
-            i32   faces_count;
+        struct { // model/mesh
+            v3    *vertices;
+            i32    count;
+            Face  *faces;
+            i32    faces_count;
+            col32 *tex;
+            v2i    tex_size;
+            m3     transform;
         };
     };
 } DrawCmd;
@@ -82,6 +93,18 @@ void draw_mesh(v3 *verts, i32 verts_count, Face *faces, i32 faces_count, col32 c
                                                .faces       = faces,
                                                .faces_count = faces_count,
                                                .color       = color};
+}
+
+void draw_model(Mesh *mesh, Texture *tex, m3 transform) {
+    if (G->draw_count == G->draw_size) return;
+    G->draw_queue[G->draw_count++] = (DrawCmd){.t           = DCT_MODEL,
+                                               .vertices    = mesh->verts,
+                                               .count       = mesh->verts_count,
+                                               .faces       = mesh->faces,
+                                               .faces_count = mesh->faces_count,
+                                               .tex         = tex->data,
+                                               .tex_size    = tex->size,
+                                               .transform   = transform};
 }
 
 void draw_rect(rect r, col32 color) {
@@ -520,13 +543,12 @@ void render_filled_triangle(v2i p0, v2i p1, v2i p2, col32 color) {
         i32  segment_height = second_half ? (p2.y - p1.y) : (p1.y - p0.y);
         if (segment_height == 0) continue;
 
-        f32 alpha = (f32)(y - p0.y) / (f32)total_height;
-        f32 beta  = second_half ? (f32)(y - p1.y) / (f32)segment_height
-                                : (f32)(y - p0.y) / (f32)segment_height;
+        q8 alpha = Q8(y - p0.y) / total_height;
+        q8 beta  = second_half ? Q8(y - p1.y) / segment_height : Q8(y - p0.y) / segment_height;
 
-        i32 xa = (i32)(p0.x + (p2.x - p0.x) * alpha);
-        i32 xb =
-            second_half ? (i32)(p1.x + (p2.x - p1.x) * beta) : (i32)(p0.x + (p1.x - p0.x) * beta);
+        i32 xa = p0.x + q8_to_i32((p2.x - p0.x) * alpha);
+        i32 xb = second_half ? p1.x + q8_to_i32((p2.x - p1.x) * beta)
+                             : p0.x + q8_to_i32((p1.x - p0.x) * beta);
 
         if (xa > xb) {
             i32 tmp = xa;
@@ -544,36 +566,55 @@ void render_filled_triangle(v2i p0, v2i p1, v2i p2, col32 color) {
     }
 }
 
-void render_textured_triangle(v2i p0, v2i p1, v2i p2, uv t0, uv t1, uv t2, v3 z,
-                              col32 *tex, v2i tex_size) {
+void render_textured_triangle(v2i p0, v2i p1, v2i p2, uv t0, uv t1, uv t2, v3 z, col32 *tex,
+                              v2i tex_size) {
     // Sort by y, keeping UVs and Z in sync
     if (p0.y > p1.y) {
-        v2i tp = p0; p0 = p1; p1 = tp;
-        uv  tt = t0; t0 = t1; t1 = tt;
-        v3  tz = z; z.val[0] = z.val[1]; z.val[1] = tz.val[0];
+        v2i tp   = p0;
+        p0       = p1;
+        p1       = tp;
+        uv tt    = t0;
+        t0       = t1;
+        t1       = tt;
+        q8 tz    = z.val[0];
+        z.val[0] = z.val[1];
+        z.val[1] = tz;
     }
     if (p0.y > p2.y) {
-        v2i tp = p0; p0 = p2; p2 = tp;
-        uv  tt = t0; t0 = t2; t2 = tt;
-        v3  tz = z; z.val[0] = z.val[2]; z.val[2] = tz.val[0];
+        v2i tp   = p0;
+        p0       = p2;
+        p2       = tp;
+        uv tt    = t0;
+        t0       = t2;
+        t2       = tt;
+        q8 tz    = z.val[0];
+        z.val[0] = z.val[2];
+        z.val[2] = tz;
     }
     if (p1.y > p2.y) {
-        v2i tp = p1; p1 = p2; p2 = tp;
-        uv  tt = t1; t1 = t2; t2 = tt;
-        v3  tz = z; z.val[1] = z.val[2]; z.val[2] = tz.val[1];
+        v2i tp   = p1;
+        p1       = p2;
+        p2       = tp;
+        uv tt    = t1;
+        t1       = t2;
+        t2       = tt;
+        q8 tz    = z.val[1];
+        z.val[1] = z.val[2];
+        z.val[2] = tz;
     }
 
     i32 total_height = p2.y - p0.y;
     if (total_height == 0) return;
 
-    // Pre-compute 1/z and u/z, v/z per vertex as floats for precision
-    f32 inv_z0 = z.val[0] != 0 ? 1.0f / (f32)z.val[0] : 0.0f;
-    f32 inv_z1 = z.val[1] != 0 ? 1.0f / (f32)z.val[1] : 0.0f;
-    f32 inv_z2 = z.val[2] != 0 ? 1.0f / (f32)z.val[2] : 0.0f;
+    // Pre-compute 1/z in Q8: Q8(1) / z = 256 / z
+    q8 inv_z0 = z.val[0] != 0 ? Q8(1) * Q8(1) / z.val[0] : 0;
+    q8 inv_z1 = z.val[1] != 0 ? Q8(1) * Q8(1) / z.val[1] : 0;
+    q8 inv_z2 = z.val[2] != 0 ? Q8(1) * Q8(1) / z.val[2] : 0;
 
-    f32 u0z = (f32)t0.u * inv_z0, v0z = (f32)t0.v * inv_z0;
-    f32 u1z = (f32)t1.u * inv_z1, v1z = (f32)t1.v * inv_z1;
-    f32 u2z = (f32)t2.u * inv_z2, v2z = (f32)t2.v * inv_z2;
+    // u/z, v/z in Q8
+    q8 u0z = q8_mul(t0.u, inv_z0), v0z = q8_mul(t0.v, inv_z0);
+    q8 u1z = q8_mul(t1.u, inv_z1), v1z = q8_mul(t1.v, inv_z1);
+    q8 u2z = q8_mul(t2.u, inv_z2), v2z = q8_mul(t2.v, inv_z2);
 
     for (i32 y = p0.y; y <= p2.y; y++) {
         if (y < 0 || y >= G->screen_size.h) continue;
@@ -582,36 +623,44 @@ void render_textured_triangle(v2i p0, v2i p1, v2i p2, uv t0, uv t1, uv t2, v3 z,
         i32  segment_height = second_half ? (p2.y - p1.y) : (p1.y - p0.y);
         if (segment_height == 0) continue;
 
-        f32 alpha = (f32)(y - p0.y) / (f32)total_height;
-        f32 beta  = second_half ? (f32)(y - p1.y) / (f32)segment_height
-                                : (f32)(y - p0.y) / (f32)segment_height;
+        // alpha = (y - p0.y) / total_height, beta similarly, as Q8
+        q8 alpha = Q8(y - p0.y) / total_height;
+        q8 beta  = second_half ? Q8(y - p1.y) / segment_height : Q8(y - p0.y) / segment_height;
 
         // Interpolate x
-        i32 xa = (i32)(p0.x + (p2.x - p0.x) * alpha);
-        i32 xb = second_half ? (i32)(p1.x + (p2.x - p1.x) * beta)
-                             : (i32)(p0.x + (p1.x - p0.x) * beta);
+        i32 xa = p0.x + q8_to_i32((p2.x - p0.x) * alpha);
+        i32 xb = second_half ? p1.x + q8_to_i32((p2.x - p1.x) * beta)
+                             : p0.x + q8_to_i32((p1.x - p0.x) * beta);
 
         // Interpolate u/z, v/z, 1/z along edges
-        f32 uza = u0z + (u2z - u0z) * alpha;
-        f32 vza = v0z + (v2z - v0z) * alpha;
-        f32 iza = inv_z0 + (inv_z2 - inv_z0) * alpha;
+        q8 uza = u0z + q8_mul(u2z - u0z, alpha);
+        q8 vza = v0z + q8_mul(v2z - v0z, alpha);
+        q8 iza = inv_z0 + q8_mul(inv_z2 - inv_z0, alpha);
 
-        f32 uzb, vzb, izb;
+        q8 uzb, vzb, izb;
         if (second_half) {
-            uzb = u1z + (u2z - u1z) * beta;
-            vzb = v1z + (v2z - v1z) * beta;
-            izb = inv_z1 + (inv_z2 - inv_z1) * beta;
+            uzb = u1z + q8_mul(u2z - u1z, beta);
+            vzb = v1z + q8_mul(v2z - v1z, beta);
+            izb = inv_z1 + q8_mul(inv_z2 - inv_z1, beta);
         } else {
-            uzb = u0z + (u1z - u0z) * beta;
-            vzb = v0z + (v1z - v0z) * beta;
-            izb = inv_z0 + (inv_z1 - inv_z0) * beta;
+            uzb = u0z + q8_mul(u1z - u0z, beta);
+            vzb = v0z + q8_mul(v1z - v0z, beta);
+            izb = inv_z0 + q8_mul(inv_z1 - inv_z0, beta);
         }
 
         if (xa > xb) {
-            i32 tmp = xa; xa = xb; xb = tmp;
-            f32 tf = uza; uza = uzb; uzb = tf;
-            tf = vza; vza = vzb; vzb = tf;
-            tf = iza; iza = izb; izb = tf;
+            i32 tmp = xa;
+            xa      = xb;
+            xb      = tmp;
+            q8 tq   = uza;
+            uza     = uzb;
+            uzb     = tq;
+            tq      = vza;
+            vza     = vzb;
+            vzb     = tq;
+            tq      = iza;
+            iza     = izb;
+            izb     = tq;
         }
 
         i32 span = xb - xa;
@@ -620,19 +669,19 @@ void render_textured_triangle(v2i p0, v2i p1, v2i p2, uv t0, uv t1, uv t2, v3 z,
         i32 x_end   = xb >= G->screen_size.w ? G->screen_size.w - 1 : xb;
 
         for (i32 x = x_start; x <= x_end; x++) {
-            f32 t = span == 0 ? 0.0f : (f32)(x - xa) / (f32)span;
+            // t = (x - xa) / span as Q8
+            q8 t = span == 0 ? 0 : Q8(x - xa) / span;
 
-            f32 inv_z = iza + (izb - iza) * t;
-            f32 uz    = uza + (uzb - uza) * t;
-            f32 vz    = vza + (vzb - vza) * t;
+            q8 inv_zp = iza + q8_mul(izb - iza, t);
+            q8 uzp    = uza + q8_mul(uzb - uza, t);
+            q8 vzp    = vza + q8_mul(vzb - vza, t);
 
-            // Recover perspective-correct u, v
-            f32 z     = inv_z != 0.0f ? 1.0f / inv_z : 0.0f;
-            q8  tex_u = (q8)(uz * z);
-            q8  tex_v = (q8)(vz * z);
+            // Recover perspective-correct u, v: u = (u/z) / (1/z)
+            q8 tex_u = inv_zp != 0 ? q8_div(uzp, inv_zp) : 0;
+            q8 tex_v = inv_zp != 0 ? q8_div(vzp, inv_zp) : 0;
 
-            i32 tx = (q8_to_i32(tex_u * (tex_size.w - 1))) & (tex_size.w - 1);
-            i32 ty = (q8_to_i32(tex_v * (tex_size.h - 1))) & (tex_size.h - 1);
+            i32 tx = q8_to_i32(q8_mul(tex_u, Q8(tex_size.w - 1))) & (tex_size.w - 1);
+            i32 ty = q8_to_i32(q8_mul(tex_v, Q8(tex_size.h - 1))) & (tex_size.h - 1);
 
             G->screen_buf[y * G->screen_size.w + x] = tex[ty * tex_size.w + tx];
         }

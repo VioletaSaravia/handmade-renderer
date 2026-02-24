@@ -4,6 +4,19 @@
 
 void tcc_err(void *opaque, const char *msg) { printf(msg); }
 
+static int draw_cmd_cmp(const void *a, const void *b) {
+    const DrawCmd *da = (const DrawCmd *)a;
+    const DrawCmd *db = (const DrawCmd *)b;
+
+    v3 cam = *(v3 *)G->game_memory;
+    q8 za  = v3_add(da->transform.pos, cam).z;
+    q8 zb  = v3_add(db->transform.pos, cam).z;
+
+    if (zb > za) return 1;
+    if (zb < za) return -1;
+    return 0;
+}
+
 static GameDLL load_dll() {
     BLOCK_BEGIN("load_dll");
     GameDLL result = {
@@ -84,8 +97,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, u32 message, WPARAM wParam, LPARAM lParam) {
 }
 
 i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, i32 nCmdShow) {
-    init_default_texture();
-
     // SetProcessDPIAware();
     {
         Arena perm = arena_new(MB(32), NULL);
@@ -229,15 +240,24 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             HBITMAP mem_bmp = CreateCompatibleBitmap(hdc, client_w, client_h);
             HBITMAP old_bmp = SelectObject(mem_dc, mem_bmp);
 
+            qsort(G->draw_queue, G->draw_count, sizeof(DrawCmd), draw_cmd_cmp);
             for (i32 i = 0; i < G->draw_count; i++) {
                 DrawCmd next = G->draw_queue[i];
 
                 switch (next.t) {
-                case DCT_MESH: {
-                    v2i *screen_verts = (v2i *)alloc_temp(sizeof(v2i) * next.count);
+                case DCT_MODEL: {
+                    v2i *screen_verts  = (v2i *)alloc_temp(sizeof(v2i) * next.count);
+                    q8  *transformed_z = (q8 *)alloc_temp(sizeof(q8) * next.count);
                     for (i32 v = 0; v < next.count; v++) {
-                        v3 n            = next.vertices[v];
-                        screen_verts[v] = v2i_from_v2(v2_screen(v3_project(n), G->screen_size));
+                        v3 n = v3_mul(next.vertices[v], next.transform.scale);
+                        n    = v3_rotate_xz(n, next.transform.rot.y);
+                        n    = v3_add(n, next.transform.pos);
+                        n    = v3_add(n, *(v3 *)G->game_memory);
+
+                        transformed_z[v] = n.z;
+                        v2 vec           = v3_project(n);
+                        vec              = v2_screen(vec, G->screen_size);
+                        screen_verts[v]  = v2i_from_v2(vec);
                     }
                     if (!next.faces || next.faces_count == 0) break;
 
@@ -255,10 +275,9 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
                         render_textured_triangle(screen_verts[face.a], screen_verts[face.b],
                                                  screen_verts[face.c], face.uva, face.uvb, face.uvc,
-                                                 (v3){next.vertices[face.a].z,
-                                                      next.vertices[face.b].z,
-                                                      next.vertices[face.c].z},
-                                                 (col32 *)default_texture, (v2i){64, 64});
+                                                 (v3){transformed_z[face.a], transformed_z[face.b],
+                                                      transformed_z[face.c]},
+                                                 next.tex, next.tex_size);
                     }
 
                     break;
