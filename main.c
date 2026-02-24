@@ -238,10 +238,25 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                         screen_verts[v] = v2i_from_v2(v2_screen(v3_project(n), G->screen_size));
                     }
 
-                    for (i32 v = 0; v < next.edges_count; v++) {
-                        v2i edge = next.edges[v];
-                        render_line(screen_verts[edge.from], screen_verts[edge.to], WHITE);
+                    if (next.faces && next.faces_count > 0) {
+                        for (i32 f = 0; f < next.faces_count; f++) {
+                            v3i face = next.faces[f];
+
+                            // Back-face culling in screen space
+                            {
+                                v2i sa      = screen_verts[face.a];
+                                v2i sb      = screen_verts[face.b];
+                                v2i sc      = screen_verts[face.c];
+                                i32 cross2d = (sb.x - sa.x) * (sc.y - sa.y) -
+                                              (sb.y - sa.y) * (sc.x - sa.x);
+                                if (cross2d <= 0) continue;
+                            }
+
+                            render_filled_triangle(screen_verts[face.a], screen_verts[face.b],
+                                                   screen_verts[face.c], next.color);
+                        }
                     }
+
                     break;
                 }
                 case DCT_RECT: {

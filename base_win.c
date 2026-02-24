@@ -27,8 +27,8 @@ typedef struct {
         struct { // mesh
             v3  *vertices;
             i32  count;
-            v2i *edges;
-            i32  edges_count;
+            v3i *faces;
+            i32  faces_count;
         };
     };
 } DrawCmd;
@@ -74,13 +74,13 @@ import extern EngineData *G;
 
 Context *ctx() { return &G->ctx; }
 
-void draw_mesh(v3 *p, i32 count, v2i *e, i32 edges_count, col32 color) {
+void draw_mesh(v3 *verts, i32 verts_count, v3i *faces, i32 faces_count, col32 color) {
     if (G->draw_count == G->draw_size) return;
     G->draw_queue[G->draw_count++] = (DrawCmd){.t           = DCT_MESH,
-                                               .vertices    = p,
-                                               .count       = count,
-                                               .edges       = e,
-                                               .edges_count = edges_count,
+                                               .vertices    = verts,
+                                               .count       = verts_count,
+                                               .faces       = faces,
+                                               .faces_count = faces_count,
                                                .color       = color};
 }
 

@@ -2,10 +2,10 @@
 
 export Info game = {
     .name    = "Handmade Renderer",
-    .version = "0.1.0",
+    .version = "0.2.0",
 };
 
-#define ENTITY_MAX 20
+#define ENTITY_MAX 1
 
 typedef struct {
     i32   id;
@@ -50,9 +50,13 @@ export void init() {
 
     for (i32 i = 0; i < ENTITY_MAX; i++) {
         data->obj_transform[i]       = m3_id;
-        data->obj_transform[i].pos   = (v3){Q8((i % 5) - 2), Q8(0), Q8((i / 5) - 2)};
+        data->obj_transform[i].pos   = (v3){Q8((i % 5) - 2), 0, Q8((i / 5) - 2)};
         data->obj_transform[i].scale = (v3){Q8(1) >> 1, Q8(1) >> 1, Q8(1) >> 1};
     }
+
+    data->obj_transform[0]       = m3_id;
+    data->obj_transform[0].pos   = (v3){0, 0, Q8(1)};
+    data->obj_transform[0].scale = (v3){Q8(1) >> 1, Q8(1) >> 1, Q8(1) >> 1};
 
     data->tilemap = ALLOC_ARRAY(u8 *, data->tilemap_size.y);
     for (i32 i = 0; i < data->tilemap_size.y; i++) {
@@ -88,6 +92,7 @@ export void update(q8 dt) {
     for (i32 i = 0; i < ENTITY_MAX; i++) {
         obj_trans[i] = (v3 *)alloc_temp(sizeof(v3) * data->obj_mesh->verts_count);
     }
+
     for (i32 i = 0; i < ENTITY_MAX; i++) {
         data->obj_transform[i].rot.y += q8_mul(Q8_PI, dt);
         while (data->obj_transform[i].rot.y > Q8_TAU)
@@ -103,8 +108,8 @@ export void update(q8 dt) {
                 data->camera_pos);
         }
 
-        draw_mesh(obj_trans[i], data->obj_mesh->verts_count, data->obj_mesh->edges,
-                  data->obj_mesh->edges_count, rgb(255, 255, 255));
+        draw_mesh(obj_trans[i], data->obj_mesh->verts_count, data->obj_mesh->faces,
+                  data->obj_mesh->faces_count, rgb(255, 255, 255));
     }
 
     draw_text(string_format(&ctx()->temp, "Total memory used: %d KB", ctx()->perm.used / 1024), 10,

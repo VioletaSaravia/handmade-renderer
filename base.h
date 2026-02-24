@@ -313,8 +313,8 @@ char *string_format(Arena *a, char *fmt, ...);
 typedef struct {
     v3  *verts;
     i32  verts_count;
-    v2i *edges;
-    i32  edges_count;
+    v3i *faces;
+    i32  faces_count;
 } Mesh;
 
 typedef union {
@@ -338,15 +338,16 @@ static v3 cube_mesh[8] = {
     {Q8(-1) >> 1, Q8(1) >> 1, Q8(-1) >> 1}, {Q8(1) >> 1, Q8(1) >> 1, Q8(-1) >> 1},
 };
 
-static v2i cube_edges[12] = {
-    {4, 5}, {5, 6}, {6, 7}, {7, 4}, {0, 1}, {1, 2}, {2, 3}, {3, 0}, {0, 4}, {1, 5}, {2, 6}, {3, 7},
+static v3i cube_faces[12] = {
+    {0, 1, 2}, {0, 2, 3}, {5, 4, 7}, {5, 7, 6}, {4, 5, 1}, {4, 1, 0},
+    {3, 2, 6}, {3, 6, 7}, {4, 0, 3}, {4, 3, 7}, {1, 5, 6}, {1, 6, 2},
 };
 
 static Mesh cube = {
     .verts       = cube_mesh,
     .verts_count = 8,
-    .edges       = cube_edges,
-    .edges_count = 12,
+    .faces       = cube_faces,
+    .faces_count = 12,
 };
 
 // Collision
