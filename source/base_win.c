@@ -6,7 +6,7 @@ import extern Data *data;
 #endif
 
 #ifdef ENGINE_IMPL
-static EngineData *G;
+global EngineData *G;
 #else
 import extern EngineData *G;
 #endif
@@ -206,9 +206,9 @@ bool gui_toggle(char *name, q8 x, q8 y, bool *val) {
 
 #define THREAD_COUNT 8
 void thread_barrier() {
-    static volatile i64 barrier_count      = 0;
-    static volatile i64 barrier_generation = 0;
-    static i32          barrier_total      = THREAD_COUNT;
+    persist volatile i64 barrier_count      = 0;
+    persist volatile i64 barrier_generation = 0;
+    persist i32          barrier_total      = THREAD_COUNT;
 
     i64 gen       = read_acquire(&barrier_generation);
     i64 new_count = InterlockedIncrement(&barrier_count);

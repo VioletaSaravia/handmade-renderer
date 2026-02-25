@@ -1,6 +1,6 @@
 #define ENGINE_IMPL
-#include "base.c"
 #include "engine.c"
+#include "base.c"
 #include "profiler.c"
 
 void tcc_err(void *opaque, const char *msg) { printf(msg); }

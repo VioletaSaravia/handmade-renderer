@@ -36,7 +36,7 @@ typedef unsigned long u64;
 
 // Forward declare for tcc >.<
 int  printf(cstr fmt, ...);
-int  vsnprintf(char *buf, u64 size, cstr fmt, va_list args);
+int  vsnprintf(char *buf, u64 size, cstr fmt, char *args);
 void abort();
 void qsort(void *ptr, u64 count, u64 size, i32 (*comp)(const void *, const void *));
 
@@ -188,9 +188,9 @@ typedef struct {
     v2i  size;
 } Texture;
 
-static col32 default_texture_data[64][64];
+global col32 default_texture_data[64][64];
 
-static Texture default_texture = {
+global Texture default_texture = {
     .data = (u32 *)default_texture_data,
     .size = {.x = 64, .y = 64},
 };
@@ -214,6 +214,11 @@ typedef union {
         q8 r, g, b;
     };
 } v3;
+
+// Normalized vector
+typedef v2 v2n;
+// Normalized vector
+typedef v3 v3n;
 
 typedef union {
     struct {
@@ -368,7 +373,7 @@ Arena arena_new(i32 cap, Arena *parent) {
 }
 
 handle arena_mark(Arena *a) { return a->used; }
-void   arena_reset(Arena *a, handle mark) { a->used = min(a->used, mark); }
+void   arena_reset(Arena *a, handle mark) { a->used = a->used >= mark ? mark : a->used; }
 u8    *alloc_perm(i32 size) { return alloc(size, &ctx()->perm); }
 u8    *alloc_temp(i32 size) { return alloc(size, &ctx()->temp); }
 #define ALLOC(type) (type *)alloc_perm(sizeof(type))

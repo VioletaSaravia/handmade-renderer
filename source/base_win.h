@@ -1,11 +1,11 @@
 #pragma once
 
-#include <libtcc/libtcc.h>
 #include "windows.h"
+#include <libtcc/libtcc.h>
 
 #include "base.h"
-#include "profiler.h"
 #include "engine.h"
+#include "profiler.h"
 
 typedef enum {
     DCT_RECT,
@@ -60,6 +60,16 @@ typedef struct {
 } DrawCmd;
 
 typedef struct {
+    cstr name;
+    cstr version;
+} Info;
+
+struct Metrics {
+    bool  initialized;
+    void *processHandle;
+};
+
+typedef struct {
     TCCState *tcc;
 
     void (*init)();
@@ -70,6 +80,32 @@ typedef struct {
     FILETIME last_write;
 
 } GameDLL;
+
+struct SystemInfo {
+    // System
+    cstr processorArchitecture;
+    u32  numberOfProcessors;
+    u32  pageSize;
+    u32  allocationGranularity;
+    f64  cpuFreq;
+
+    // Memory
+    u64 totalPhys;
+    u64 availPhys;
+    u64 totalVirtual;
+    u64 availVirtual;
+
+    // OS
+    u32 majorVersion;
+    u32 minorVersion;
+    u32 buildNumber;
+    u32 platformId;
+
+    // GPU
+    cstr gpuName;
+    cstr gpuVendor;
+    cstr glVersion;
+};
 
 struct EngineData {
     Context ctx;

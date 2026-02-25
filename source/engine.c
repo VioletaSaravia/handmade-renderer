@@ -400,3 +400,18 @@ internal void render_textured_triangle(v2i p0, v2i p1, v2i p2, uv t0, uv t1, uv 
         }
     }
 }
+
+internal void systeminfo_print(SystemInfo info) {
+    INFO("System Information");
+    printf("\t> Platform: \t\t\tWindows %s\n", info.processorArchitecture);
+    printf("\t> Version: \t\t\t%u.%u.%u\n", info.majorVersion, info.minorVersion, info.buildNumber);
+    printf("\t> Processor Count: \t\t%u\n", info.numberOfProcessors);
+    printf("\t> CPU Frequency: \t\t%.2f GHz\n", info.cpuFreq);
+    printf("\t> Page Size: \t\t\t%u bytes\n", info.pageSize);
+
+    INFO("Memory Information");
+    printf("\t> Total Physical Memory: \t%llu MB\n", info.totalPhys / (1024 * 1024));
+    printf("\t> Available Physical Memory: \t%llu MB\n", info.availPhys / (1024 * 1024));
+    printf("\t> Total Virtual Memory: \t%llu MB\n", info.totalVirtual / (1024 * 1024));
+    printf("\t> Available Virtual Memory: \t%llu MB\n", info.availVirtual / (1024 * 1024));
+}

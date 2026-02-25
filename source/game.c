@@ -1,4 +1,6 @@
-#include "base_win.c"
+#include "engine.c" // TODO(violeta): Remove as dependency of game layer
+
+#include "base.c"
 
 export Info game = {
     .name    = "Handmade Renderer",
@@ -7,31 +9,42 @@ export Info game = {
 
 #define ENTITY_MAX 25000
 
+typedef i32 EntityID;
+
 typedef struct {
-    i32      id;
-    m3       transform;
-    Mesh    *mesh;
-    Texture *tex;
-} Entity;
+    v3  pos;
+    v3n look_at; // TODO(violeta)
+} Camera;
 
 struct Data {
+    // Global
     v3    camera_pos;
     col32 fg, bg, text_light, text_dark;
     col32 solid_tiles[4];
 
-    handle   level_mark;
-    m3      *obj_transform;
-    Mesh    *obj_mesh;
-    Texture *obj_tex;
-    v2i      tilemap_size;
-    u8     **tilemap;
-    q8       tile_size;
+    // Level
+    handle level_mark;
+
+    // Terrain
+    v2i  tilemap_size;
+    u8 **tilemap;
+    q8   tile_size;
+
+    // Entities
+    EntityID *entities;
+    i32       count, cap;
+    m3       *obj_transform;
+    Mesh     *obj_mesh;
+    Texture  *obj_tex;
 };
 
 export void init() {
     init_default_texture();
     *data = (Data){
         .camera_pos = {0, 0, Q8(3)},
+        .entities   = ALLOC_ARRAY(EntityID, ENTITY_MAX),
+        .count      = 0,
+        .cap        = ENTITY_MAX,
         .obj_mesh   = &cube,
         .obj_tex    = &default_texture,
         .fg         = rgb(110, 124, 205),
@@ -92,26 +105,12 @@ export void update(q8 dt) {
         }
     }
 
-    // v3 **obj_trans = (v3 **)alloc_temp(sizeof(v3 *) * ENTITY_MAX);
-    // for (i32 i = 0; i < ENTITY_MAX; i++) {
-    //     obj_trans[i] = (v3 *)alloc_temp(sizeof(v3) * data->obj_mesh->verts_count);
-    // }
-
     for (i32 i = 0; i < ENTITY_MAX; i++) {
         data->obj_transform[i].rot.y += q8_mul(Q8_PI, dt);
         while (data->obj_transform[i].rot.y > Q8_TAU)
             data->obj_transform[i].rot.y -= Q8_TAU;
         while (data->obj_transform[i].rot.y < 0)
             data->obj_transform[i].rot.y += Q8_TAU;
-
-        // for (i32 j = 0; j < data->obj_mesh->verts_count; j++) {
-        //     obj_trans[i][j] = v3_add(
-        //         v3_add(v3_rotate_xz(v3_mul(data->obj_mesh->verts[j],
-        //         data->obj_transform[i].scale),
-        //                             data->obj_transform[i].rot.y),
-        //                data->obj_transform[i].pos),
-        //         data->camera_pos);
-        // }
 
         draw_model(data->obj_mesh, data->obj_tex, data->obj_transform[i]);
     }
