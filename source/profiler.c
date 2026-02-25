@@ -222,12 +222,13 @@ void repprofiler_print(RepProfiler *p) {
 
 #endif
 
-LoopProfiler loopprofiler_new(cstr name) {
+LoopProfiler loopprofiler_new(cstr name, i32 initial_counter) {
     LARGE_INTEGER perfCounter = {0};
     QueryPerformanceCounter(&perfCounter);
     return (LoopProfiler){
-        .name  = name,
-        .start = perfCounter.QuadPart,
+        .name            = name,
+        .start           = perfCounter.QuadPart,
+        .initial_counter = initial_counter,
     };
 }
 
@@ -258,7 +259,11 @@ void loop_end(LoopProfiler *p) {
 void loop_block_begin(LoopProfiler *p, u64 id, cstr label, cstr file, i32 line,
                       u64 bytesProcessed) {
     Profiler *p = &EG()->profiler;
+    id -= p->initial_counter + 1; // TODO(violeta): off by one?
+
     if (id >= MAX_BLOCKS) {
+        ERR("Exceeded MAX_BLOCKS in loop profiler. Can't profile %s at %s:%d", label, file, line);
+        p->queue_len++;
         return;
     }
 

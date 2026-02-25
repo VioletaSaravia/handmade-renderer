@@ -403,6 +403,108 @@ typedef struct {
     i32   faces_count;
 } Mesh;
 
+Mesh mesh_from_obj(Arena *a, const char *obj) {
+    // Forward declare C stdlib parsing functions
+    float strtof(const char *, char **);
+    long  strtol(const char *, char **, int);
+
+    Mesh mesh = {0};
+
+    // --- First pass: count vertices, texture coords, and faces ---
+    i32         vert_count = 0, uv_count = 0, face_count = 0;
+    const char *p = obj;
+    while (*p) {
+        while (*p == ' ' || *p == '\t')
+            p++;
+        if (p[0] == 'v' && p[1] == 't' && p[2] == ' ')
+            uv_count++;
+        else if (p[0] == 'v' && p[1] == ' ')
+            vert_count++;
+        else if (p[0] == 'f' && p[1] == ' ')
+            face_count++;
+        while (*p && *p != '\n' && *p != '\r')
+            p++;
+        if (*p == '\r') p++;
+        if (*p == '\n') p++;
+    }
+
+    // --- Allocate mesh data from the permanent arena ---
+    mesh.verts       = (v3 *)alloc(sizeof(v3) * vert_count, a);
+    mesh.verts_count = vert_count;
+    mesh.faces       = (Face *)alloc(sizeof(Face) * face_count, a);
+    mesh.faces_count = face_count;
+
+    // Temp storage for UVs (freed after parsing)
+    handle temp_mark = arena_mark(&ctx()->temp);
+    v2    *uvs       = uv_count > 0 ? ALLOC_TEMP_ARRAY(v2, uv_count) : 0;
+
+    // --- Second pass: parse data ---
+    i32   vi = 0, uvi = 0, fi = 0;
+    char *end;
+    p = obj;
+    while (*p) {
+        while (*p == ' ' || *p == '\t')
+            p++;
+
+        if (p[0] == 'v' && p[1] == 't' && p[2] == ' ') {
+            p += 3;
+            f32 u      = strtof(p, &end);
+            p          = end;
+            f32 v      = strtof(p, &end);
+            p          = end;
+            uvs[uvi++] = (v2){q8_from_f32(u), q8_from_f32(v)};
+        } else if (p[0] == 'v' && p[1] == ' ') {
+            p += 2;
+            f32 x            = strtof(p, &end);
+            p                = end;
+            f32 y            = strtof(p, &end);
+            p                = end;
+            f32 z            = strtof(p, &end);
+            p                = end;
+            mesh.verts[vi++] = (v3){q8_from_f32(x), q8_from_f32(y), q8_from_f32(z)};
+        } else if (p[0] == 'f' && p[1] == ' ') {
+            p += 2;
+            i32 idx[3]    = {0};
+            i32 uv_idx[3] = {-1, -1, -1};
+
+            for (i32 i = 0; i < 3; i++) {
+                while (*p == ' ')
+                    p++;
+                idx[i] = (i32)strtol(p, &end, 10) - 1;
+                p      = end;
+                if (*p == '/') {
+                    p++;
+                    if (*p != '/' && *p != ' ' && *p != '\n' && *p != '\r' && *p) {
+                        uv_idx[i] = (i32)strtol(p, &end, 10) - 1;
+                        p         = end;
+                    }
+                    if (*p == '/') {
+                        p++;
+                        strtol(p, &end, 10);
+                        p = end;
+                    } // skip normal index
+                }
+            }
+
+            mesh.faces[fi].a   = idx[0];
+            mesh.faces[fi].b   = idx[1];
+            mesh.faces[fi].c   = idx[2];
+            mesh.faces[fi].uva = (uv_idx[0] >= 0 && uvs) ? uvs[uv_idx[0]] : (v2){0, 0};
+            mesh.faces[fi].uvb = (uv_idx[1] >= 0 && uvs) ? uvs[uv_idx[1]] : (v2){0, 0};
+            mesh.faces[fi].uvc = (uv_idx[2] >= 0 && uvs) ? uvs[uv_idx[2]] : (v2){0, 0};
+            fi++;
+        }
+
+        while (*p && *p != '\n' && *p != '\r')
+            p++;
+        if (*p == '\r') p++;
+        if (*p == '\n') p++;
+    }
+
+    arena_reset(&ctx()->temp, temp_mark);
+    return mesh;
+}
+
 typedef union {
     q8 val[3][3];
 
@@ -411,13 +513,13 @@ typedef union {
     };
 } m3;
 
-const static m3 m3_id = {.val = {{Q8(1), 0, 0}, {0, Q8(1), 0}, {0, 0, Q8(1)}}};
+const global m3 m3_id = {.val = {{Q8(1), 0, 0}, {0, Q8(1), 0}, {0, 0, Q8(1)}}};
 
 typedef q8 m4[4][4];
 
-const static m4 m4_id = {{Q8(1), 0, 0, 0}, {0, Q8(1), 0, 0}, {0, 0, Q8(1), 0}, {0, 0, 0, Q8(1)}};
+const global m4 m4_id = {{Q8(1), 0, 0, 0}, {0, Q8(1), 0, 0}, {0, 0, Q8(1), 0}, {0, 0, 0, Q8(1)}};
 
-static v3 cube_mesh[8] = {
+global v3 cube_mesh[8] = {
     {Q8(1) >> 1, Q8(-1) >> 1, Q8(1) >> 1},  {Q8(-1) >> 1, Q8(-1) >> 1, Q8(1) >> 1},
     {Q8(-1) >> 1, Q8(1) >> 1, Q8(1) >> 1},  {Q8(1) >> 1, Q8(1) >> 1, Q8(1) >> 1},
     {Q8(1) >> 1, Q8(-1) >> 1, Q8(-1) >> 1}, {Q8(-1) >> 1, Q8(-1) >> 1, Q8(-1) >> 1},
@@ -429,7 +531,7 @@ static v3 cube_mesh[8] = {
 #define UV2 {Q8(1), Q8(1)}
 #define UV3 {0, Q8(1)}
 
-static Face cube_faces[12] = {
+global Face cube_faces[12] = {
     // Front face  (+z)
     {0, 1, 2, UV0, UV1, UV2},
     {0, 2, 3, UV0, UV2, UV3},
@@ -450,7 +552,7 @@ static Face cube_faces[12] = {
     {1, 6, 2, UV0, UV2, UV3},
 };
 
-static Mesh cube = {
+global Mesh cube = {
     .verts       = cube_mesh,
     .verts_count = 8,
     .faces       = cube_faces,

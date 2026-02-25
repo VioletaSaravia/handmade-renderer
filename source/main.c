@@ -161,7 +161,10 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     LOOP_PROFILER();
     while (!G->shutdown) {
         LOOP_BEGIN();
+
+        LOOP_BLOCK("Hot Reload");
         hot_reload();
+        LOOP_BLOCK_END();
         f64 frame_start = now_seconds();
 
         for (i32 i = 0; i < K_COUNT; i++) {
@@ -426,6 +429,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
         }
 
         {
+            LOOP_BLOCK("Leftover");
             next_frame += target_dt;
 
             f64 remaining = next_frame - now_seconds();
@@ -436,6 +440,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
             arena_reset(&ctx()->temp, 0);
             dt = now_seconds() - frame_start;
+            LOOP_BLOCK_END();
         }
 
         LOOP_END();
