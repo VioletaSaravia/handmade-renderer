@@ -60,3 +60,24 @@ void loop_block_add_bytes(LoopProfiler *p, u64 bytes);
 void loop_block_end(LoopProfiler *p);
 void loop_begin(LoopProfiler *p);
 void loop_end(LoopProfiler *p);
+
+#ifndef DISABLE_LOOP_PROFILER
+
+#define LOOP_PROFILER() EG()->loop_profiler = loopprofiler_new(__func__)
+#define LOOP_BLOCK(id, label, bytes) \
+    loop_block_begin(&EG()->loop_profiler, id, label, __FILE__, __LINE__, bytes)
+#define LOOP_BLOCK_END() loop_block_end(&EG()->loop_profiler)
+#define LOOP_BLOCK_BYTES(bytes) loop_block_add_bytes(&EG()->loop_profiler, bytes)
+#define LOOP_BEGIN() loop_begin(&EG()->loop_profiler)
+#define LOOP_END() loop_end(&EG()->loop_profiler)
+
+#else
+
+#define LOOP_BLOCK(...)
+#define LOOP_BLOCK_END(...)
+#define LOOP_BLOCK_BYTES(...)
+#define LOOP_PROFILER()
+#define LOOP_BEGIN(...)
+#define LOOP_END(...)
+
+#endif

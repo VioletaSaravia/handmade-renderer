@@ -158,8 +158,9 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     if (G->game.init) G->game.init();
     BLOCK_END();
 
+    LOOP_PROFILER();
     while (!G->shutdown) {
-        LoopProfiler profiler = loopprofiler_new("Main Loop");
+        LOOP_BEGIN();
         hot_reload();
         f64 frame_start = now_seconds();
 
@@ -227,13 +228,13 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             DispatchMessage(&G->msg);
         }
 
-        loop_block_begin(&profiler, 1, "Update", __FILE__, __LINE__, 0);
+        LOOP_BLOCK(1, "Update", 0);
         G->game.update((q8)(dt * 256.0f));
-        loop_block_end(&profiler);
+        LOOP_BLOCK_END();
 
         {
-            loop_block_begin(&profiler, 0, "Render", __FILE__, __LINE__, 0);
-            loop_block_add_bytes(&profiler, G->draw_count * sizeof(DrawCmd));
+            LOOP_BLOCK(0, "Render", 0);
+            LOOP_BLOCK_BYTES(G->draw_count * sizeof(DrawCmd));
             HDC  hdc = GetDC(G->hwnd);
             RECT rc  = {0};
             GetClientRect(G->hwnd, &rc);
@@ -251,7 +252,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
                 switch (next.t) {
                 case DCT_MESH_WIREFRAME: {
-                    loop_block_add_bytes(&profiler, (sizeof(v2i) + sizeof(v3)) * next.count);
+                    LOOP_BLOCK_BYTES((sizeof(v2i) + sizeof(v3)) * next.count);
                     v2i *screen_verts = (v2i *)alloc_temp(sizeof(v2i) * next.count);
                     for (i32 v = 0; v < next.count; v++) {
                         v3 n            = next.vertices[v];
@@ -265,7 +266,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                     break;
                 }
                 case DCT_MESH_SOLID: {
-                    loop_block_add_bytes(&profiler, (sizeof(v2i) + sizeof(v3)) * next.count);
+                    LOOP_BLOCK_BYTES((sizeof(v2i) + sizeof(v3)) * next.count);
                     v2i *screen_verts  = (v2i *)alloc_temp(sizeof(v2i) * next.count);
                     q8  *transformed_z = (q8 *)alloc_temp(sizeof(q8) * next.count);
                     for (i32 v = 0; v < next.count; v++) {
@@ -300,7 +301,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                     break;
                 }
                 case DCT_MODEL: {
-                    loop_block_add_bytes(&profiler, next.count * (sizeof(Face) + sizeof(v3)));
+                    LOOP_BLOCK_BYTES(next.count * (sizeof(Face) + sizeof(v3)));
                     v2i *screen_verts  = (v2i *)alloc_temp(sizeof(v2i) * next.count);
                     q8  *transformed_z = (q8 *)alloc_temp(sizeof(q8) * next.count);
                     for (i32 v = 0; v < next.count; v++) {
@@ -346,7 +347,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                     };
                     // NOTE(violeta): Here we're profiling output bytes, but in the
                     // others we're counting input data?
-                    loop_block_add_bytes(&profiler, next.r.w * next.r.h * sizeof(u32));
+                    LOOP_BLOCK_BYTES(next.r.w * next.r.h * sizeof(u32));
                     for (i32 y_coord = next.r.y; y_coord < next.r.y + next.r.h; y_coord++) {
                         for (i32 x_coord = next.r.x; x_coord < next.r.x + next.r.w; x_coord++) {
                             if (x_coord >= 0 && x_coord < G->screen_size.w && y_coord >= 0 &&
@@ -421,7 +422,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
             ReleaseDC(G->hwnd, hdc);
             G->draw_count = 0;
-            loop_block_end(&profiler);
+            LOOP_BLOCK_END();
         }
 
         {
@@ -437,7 +438,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             dt = now_seconds() - frame_start;
         }
 
-        loop_end(&profiler);
+        LOOP_END();
     }
 
     if (G->game.quit) G->game.quit();

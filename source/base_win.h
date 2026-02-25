@@ -126,4 +126,5 @@ struct EngineData {
     Metrics         metrics;
     SystemInfo      system_info;
     Profiler        profiler;
+    LoopProfiler    loop_profiler;
 };
