@@ -17,6 +17,7 @@ static int draw_cmd_cmp(const void *a, const void *b) {
     return 0;
 }
 
+#define GAME_ENTRYPOINT "source\\game.c"
 static GameDLL load_dll() {
     BLOCK_BEGIN("load_dll");
     GameDLL result = {
@@ -24,7 +25,7 @@ static GameDLL load_dll() {
     };
     if (!result.tcc) goto cleanup;
 
-    GetLastWriteTime("game.c", &result.last_write);
+    GetLastWriteTime(GAME_ENTRYPOINT, &result.last_write);
 
     tcc_set_error_func(result.tcc, NULL, tcc_err);
 
@@ -36,7 +37,7 @@ static GameDLL load_dll() {
     tcc_add_library(result.tcc, "gdi32");
 
     if (tcc_set_output_type(result.tcc, TCC_OUTPUT_MEMORY) == -1) goto cleanup;
-    if (tcc_add_file(result.tcc, "game.c") == -1) goto cleanup;
+    if (tcc_add_file(result.tcc, GAME_ENTRYPOINT) == -1) goto cleanup;
     if (tcc_add_symbol(result.tcc, "G", &G) == -1) goto cleanup;
     if (tcc_add_symbol(result.tcc, "data", &G->game_memory) == -1) goto cleanup;
     if (tcc_relocate(result.tcc, TCC_RELOCATE_AUTO) == -1) goto cleanup;
@@ -64,14 +65,14 @@ static GameDLL load_dll() {
 cleanup:
     if (result.tcc) tcc_delete(result.tcc);
     printf("\n");
-    ERR("Couldn't load game.c");
+    ERR("Couldn't load %s", GAME_ENTRYPOINT);
     BLOCK_END();
     return (GameDLL){0};
 }
 
 static void hot_reload() {
     FILETIME new_write = {0};
-    if (!GetLastWriteTime("game.c", &new_write)) return;
+    if (!GetLastWriteTime(GAME_ENTRYPOINT, &new_write)) return;
     if (CompareFileTime(&new_write, &G->game.last_write) == 0) return;
 
     GameDLL new_dll = load_dll();

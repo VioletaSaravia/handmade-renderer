@@ -128,7 +128,7 @@ void rep_begin(RepProfiler *p) {
     p->current = (RepBlock){
         .time       = (u64)(perfCounter.QuadPart),
         .bytes      = 0,
-        .pageFaults = ReadPageFaultCount(G->metrics),
+        .pageFaults = get_page_fault_count(G->metrics),
     };
 }
 
@@ -138,7 +138,7 @@ void rep_end(RepProfiler *p) {
     LARGE_INTEGER perfCounter = {0};
     QueryPerformanceCounter(&perfCounter);
     p->current.time       = perfCounter.QuadPart - p->current.time;
-    p->current.pageFaults = ReadPageFaultCount(G->metrics) - p->current.pageFaults;
+    p->current.pageFaults = get_page_fault_count(G->metrics) - p->current.pageFaults;
 
     if (p->current.time < p->min.time || p->min.time == 0) {
         p->min = p->current;
