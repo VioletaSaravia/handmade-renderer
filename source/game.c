@@ -17,18 +17,18 @@ typedef struct {
 } Camera;
 
 struct Data {
-    // Global
-    v3    camera_pos;
-    col32 fg, bg, text_light, text_dark;
-    col32 solid_tiles[4];
-
     // Level
+    Camera cam; // DO NOT MOVE :P
     handle level_mark;
 
+    // GUI
+    col32 fg, bg, text_light, text_dark;
+
     // Terrain
-    v2i  tilemap_size;
-    u8 **tilemap;
-    q8   tile_size;
+    col32 solid_tiles[4];
+    v2i   tilemap_size;
+    u8   *tilemap;
+    q8    tile_size;
 
     // Entities
     EntityID *entities;
@@ -41,7 +41,7 @@ struct Data {
 export void init() {
     init_default_texture();
     *data = (Data){
-        .camera_pos = {0, 0, Q8(3)},
+        .cam        = {.pos = (v3){0, 0, Q8(3)}},
         .entities   = ALLOC_ARRAY(EntityID, ENTITY_MAX),
         .count      = 0,
         .cap        = ENTITY_MAX,
@@ -75,30 +75,27 @@ export void init() {
     data->obj_transform[0].pos   = (v3){0, 0, Q8(1)};
     data->obj_transform[0].scale = (v3){Q8(1) >> 1, Q8(1) >> 1, Q8(1) >> 1};
 
-    data->tilemap = ALLOC_ARRAY(u8 *, data->tilemap_size.y);
-    for (i32 i = 0; i < data->tilemap_size.y; i++) {
-        data->tilemap[i] = ALLOC_ARRAY(u8, data->tilemap_size.x);
-    }
+    data->tilemap = ALLOC_ARRAY(u8, data->tilemap_size.y * data->tilemap_size.x);
 
     for (i32 y = 0; y < data->tilemap_size.y; y++) {
         for (i32 x = 0; x < data->tilemap_size.x; x++) {
-            data->tilemap[y][x] = (x + y) % 4;
+            data->tilemap[y * data->tilemap_size.x + x] = (x + y) % 4;
         }
     }
 }
 
 export void update(q8 dt) {
-    if (G->keys[K_UP] == KS_PRESSED) data->camera_pos.z -= dt;
-    if (G->keys[K_DOWN] == KS_PRESSED) data->camera_pos.z += dt;
-    if (G->keys[K_LEFT] == KS_PRESSED) data->camera_pos.x += dt;
-    if (G->keys[K_RIGHT] == KS_PRESSED) data->camera_pos.x -= dt;
+    if (G->keys[K_UP] == KS_PRESSED) data->cam.pos.z -= dt;
+    if (G->keys[K_DOWN] == KS_PRESSED) data->cam.pos.z += dt;
+    if (G->keys[K_LEFT] == KS_PRESSED) data->cam.pos.x += dt;
+    if (G->keys[K_RIGHT] == KS_PRESSED) data->cam.pos.x -= dt;
 
     for (i32 y = 0; y < G->screen_size.h / q8_to_i32(data->tile_size); y++) {
         for (i32 x = 0; x < G->screen_size.w / q8_to_i32(data->tile_size); x++) {
             i32 map_x = x % data->tilemap_size.x;
             i32 map_y = y % data->tilemap_size.y;
 
-            u8 tile_id = data->tilemap[map_y][map_x];
+            u8 tile_id = data->tilemap[map_y * data->tilemap_size.x + map_x];
             draw_rect((rect){q8_mul(Q8(x), data->tile_size), q8_mul(Q8(y), data->tile_size),
                              data->tile_size, data->tile_size},
                       data->solid_tiles[tile_id]);

@@ -531,8 +531,31 @@ typedef enum {
 } Key;
 
 typedef enum {
+    A_NONE = 0,
+    A_UP,
+    A_DOWN,
+    A_LEFT,
+    A_RIGHT,
+    A_ACCEPT,
+    A_CANCEL,
+    A_COUNT,
+} Action;
+
+typedef enum {
     KS_RELEASED = 0,
     KS_JUST_RELEASED,
     KS_JUST_PRESSED,
     KS_PRESSED,
 } KeyState;
+
+// TODO(violeta): Move to Info
+global Key Keybinds[A_COUNT][2] = {
+    [A_UP]     = {K_UP, K_W},    //
+    [A_DOWN]   = {K_DOWN, K_R},  //
+    [A_LEFT]   = {K_LEFT, K_A},  //
+    [A_RIGHT]  = {K_RIGHT, K_S}, //
+    [A_ACCEPT] = {K_ENTER},      //
+    [A_CANCEL] = {K_ESCAPE},     //
+};
+
+KeyState GetAction(Action k);
