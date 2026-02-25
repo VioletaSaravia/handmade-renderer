@@ -228,12 +228,12 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             DispatchMessage(&G->msg);
         }
 
-        LOOP_BLOCK(1, "Update", 0);
+        LOOP_BLOCK("Update");
         G->game.update((q8)(dt * 256.0f));
         LOOP_BLOCK_END();
 
         {
-            LOOP_BLOCK(0, "Render", 0);
+            LOOP_BLOCK("Render");
             LOOP_BLOCK_BYTES(G->draw_count * sizeof(DrawCmd));
             HDC  hdc = GetDC(G->hwnd);
             RECT rc  = {0};

@@ -13,6 +13,7 @@ typedef struct {
     u64 bytesProcessed;
 } Block;
 
+// TODO(violeta): Other parts of the code use __COUNTER__ too, messing with the block array.
 #ifndef MAX_BLOCKS
 #define MAX_BLOCKS 128
 #endif
@@ -64,8 +65,8 @@ void loop_end(LoopProfiler *p);
 #ifndef DISABLE_LOOP_PROFILER
 
 #define LOOP_PROFILER() EG()->loop_profiler = loopprofiler_new(__func__)
-#define LOOP_BLOCK(id, label, bytes) \
-    loop_block_begin(&EG()->loop_profiler, id, label, __FILE__, __LINE__, bytes)
+#define LOOP_BLOCK(label) \
+    loop_block_begin(&EG()->loop_profiler, __COUNTER__ + 1, label, __FILE__, __LINE__, 0)
 #define LOOP_BLOCK_END() loop_block_end(&EG()->loop_profiler)
 #define LOOP_BLOCK_BYTES(bytes) loop_block_add_bytes(&EG()->loop_profiler, bytes)
 #define LOOP_BEGIN() loop_begin(&EG()->loop_profiler)
