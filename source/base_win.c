@@ -208,7 +208,7 @@ bool gui_toggle(char *name, q8 x, q8 y, bool *val) {
 void thread_barrier() {
     persist volatile i64 barrier_count      = 0;
     persist volatile i64 barrier_generation = 0;
-    persist i32          barrier_total      = THREAD_COUNT;
+    persist const i32    barrier_total      = THREAD_COUNT;
 
     i64 gen       = read_acquire(&barrier_generation);
     i64 new_count = InterlockedIncrement(&barrier_count);

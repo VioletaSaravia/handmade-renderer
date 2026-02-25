@@ -1,6 +1,6 @@
 #define ENGINE_IMPL
-#include "engine.c"
 #include "base.c"
+#include "engine.c"
 #include "profiler.c"
 
 void tcc_err(void *opaque, const char *msg) { printf(msg); }
@@ -158,10 +158,9 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     if (G->game.init) G->game.init();
     BLOCK_END();
 
-    RepProfiler rep = repprofiler_new("game loop", 1000);
     while (!G->shutdown) {
+        LoopProfiler profiler = loopprofiler_new("Main Loop");
         hot_reload();
-        rep_begin(&rep);
         f64 frame_start = now_seconds();
 
         for (i32 i = 0; i < K_COUNT; i++) {
@@ -228,9 +227,13 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             DispatchMessage(&G->msg);
         }
 
+        loop_block_begin(&profiler, 1, "Update", __FILE__, __LINE__, 0);
         G->game.update((q8)(dt * 256.0f));
+        loop_block_end(&profiler);
 
         {
+            loop_block_begin(&profiler, 0, "Render", __FILE__, __LINE__, 0);
+            loop_block_add_bytes(&profiler, G->draw_count * sizeof(DrawCmd));
             HDC  hdc = GetDC(G->hwnd);
             RECT rc  = {0};
             GetClientRect(G->hwnd, &rc);
@@ -248,6 +251,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
                 switch (next.t) {
                 case DCT_MESH_WIREFRAME: {
+                    loop_block_add_bytes(&profiler, (sizeof(v2i) + sizeof(v3)) * next.count);
                     v2i *screen_verts = (v2i *)alloc_temp(sizeof(v2i) * next.count);
                     for (i32 v = 0; v < next.count; v++) {
                         v3 n            = next.vertices[v];
@@ -261,6 +265,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                     break;
                 }
                 case DCT_MESH_SOLID: {
+                    loop_block_add_bytes(&profiler, (sizeof(v2i) + sizeof(v3)) * next.count);
                     v2i *screen_verts  = (v2i *)alloc_temp(sizeof(v2i) * next.count);
                     q8  *transformed_z = (q8 *)alloc_temp(sizeof(q8) * next.count);
                     for (i32 v = 0; v < next.count; v++) {
@@ -295,6 +300,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                     break;
                 }
                 case DCT_MODEL: {
+                    loop_block_add_bytes(&profiler, next.count * (sizeof(Face) + sizeof(v3)));
                     v2i *screen_verts  = (v2i *)alloc_temp(sizeof(v2i) * next.count);
                     q8  *transformed_z = (q8 *)alloc_temp(sizeof(q8) * next.count);
                     for (i32 v = 0; v < next.count; v++) {
@@ -338,6 +344,9 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                         .w = q8_to_i32(next.r.w),
                         .h = q8_to_i32(next.r.h),
                     };
+                    // NOTE(violeta): Here we're profiling output bytes, but in the
+                    // others we're counting input data?
+                    loop_block_add_bytes(&profiler, next.r.w * next.r.h * sizeof(u32));
                     for (i32 y_coord = next.r.y; y_coord < next.r.y + next.r.h; y_coord++) {
                         for (i32 x_coord = next.r.x; x_coord < next.r.x + next.r.w; x_coord++) {
                             if (x_coord >= 0 && x_coord < G->screen_size.w && y_coord >= 0 &&
@@ -412,6 +421,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
             ReleaseDC(G->hwnd, hdc);
             G->draw_count = 0;
+            loop_block_end(&profiler);
         }
 
         {
@@ -426,10 +436,10 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             arena_reset(&ctx()->temp, 0);
             dt = now_seconds() - frame_start;
         }
-        rep_end(&rep);
+
+        loop_end(&profiler);
     }
 
-    repprofiler_print(&rep);
     if (G->game.quit) G->game.quit();
     profiler_end();
     return G->msg.wParam;
