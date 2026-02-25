@@ -1,7 +1,5 @@
 #include "base_win.h"
 
-#include "engine.c"
-
 typedef struct Data Data;
 #ifndef ENGINE_IMPL
 import extern Data *data;

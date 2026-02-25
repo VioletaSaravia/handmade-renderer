@@ -1,3 +1,4 @@
+#include "engine.c"
 #include "game.c"
 
 LRESULT CALLBACK WndProc(HWND hwnd, u32 message, WPARAM wParam, LPARAM lParam) {

@@ -69,6 +69,12 @@ void qsort(void *ptr, u64 count, u64 size, i32 (*comp)(const void *, const void 
         }                                         \
     } while (0);
 
+typedef float f32;
+typedef f32   rad;
+typedef f32   deg;
+
+typedef double f64;
+
 // 1.23.8 fixed point
 typedef i32 q8;
 #define Q8(i32_val) ((q8)((i32_val) << 8))
@@ -76,8 +82,8 @@ typedef i32 q8;
 #define Q8_PI (q8)(804)
 #define Q8_TAU (q8)(1608)
 
-// q8  q8_from_f32(f32 val) { return val * 256.0f; }
-// f32 q8_to_f32(q8 val) { return (f32)val / 256.0f; }
+q8  q8_from_f32(f32 val) { return val * 256.0f; }
+f32 q8_to_f32(q8 val) { return (f32)val / 256.0f; }
 q8  q8_from_i32(i32 val) { return val << 8; }
 i32 q8_to_i32(q8 val) { return val >> 8; }
 
@@ -92,15 +98,15 @@ q8 q8_div(q8 a, q8 b) { return (q8)((a << 8) / b); }
 q8 q8_mul64(q8 a, q8 b) { return (q8)(((i64)a * (i64)b) >> 8); }
 q8 q8_div64(q8 a, q8 b) { return (q8)(((i64)a << 8) / b); }
 
-// 1.23.6 fixed point
+// 1.25.6 fixed point
 typedef i32 q6;
 #define Q6(i32_val) ((q6)((i32_val) << 6))
 
 #define Q6_PI (q6)(1608 / 4)
 #define Q6_TAU (q6)(1608 / 2)
 
-// q6  q6_from_f32(f32 val) { return val * 64.0f; }
-// f32 q6_to_f32(q6 val) { return (f32)val / 64.0f; }
+q6  q6_from_f32(f32 val) { return val * 64.0f; }
+f32 q6_to_f32(q6 val) { return (f32)val / 64.0f; }
 q6  q6_from_i32(i32 val) { return val << 6; }
 i32 q6_to_i32(q6 val) { return val >> 6; }
 
@@ -115,11 +121,32 @@ q6 q6_div(q6 a, q6 b) { return (q6)((a << 6) / b); }
 q6 q6_mul64(q6 a, q6 b) { return (q6)(((i64)a * (i64)b) >> 6); }
 q6 q6_div64(q6 a, q6 b) { return (q6)(((i64)a << 6) / b); }
 
-typedef float f32;
-typedef f32   rad;
-typedef f32   deg;
+#ifndef Q_FRAC
+#define Q_FRAC 8
+#endif
+#if Q_FRAC == 8
+typedef q8 q32;
+#elif Q_FRAC == 6
+typedef q6 q32;
+#endif
 
-typedef double f64;
+#define Q32(i32_val) ((q32)((i32_val) << Q_FRAC))
+#define Q32_FROM_F32(f32_val) ((q32)((f32_val) * (1 << Q_FRAC)))
+#define Q32_TO_F32(q32_val) ((f32)(q32_val) / (1 << Q_FRAC))
+#define Q32_FROM_I32(i32_val) ((q32)(i32_val) << Q_FRAC)
+#define Q32_TO_I32(q32_val) ((i32)(q32_val) >> Q_FRAC)
+
+#define Q32_FLOOR(q32_val) ((q32_val) & ~((1 << Q_FRAC) - 1))
+#define Q32_CEIL(q32_val) (((q32_val) + ((1 << Q_FRAC) - 1)) & ~((1 << Q_FRAC) - 1))
+#define Q32_ROUND(q32_val) (((q32_val) + (1 << (Q_FRAC - 1))) & ~((1 << Q_FRAC) - 1))
+#define Q32_FRAC(q32_val) ((q32_val) & ((1 << Q_FRAC) - 1))
+#define Q32_MUL(a, b) ((q32)(((i64)(a) * (i64)(b)) >> Q_FRAC))
+#define Q32_DIV(a, b) ((q32)(((i64)(a) << Q_FRAC) / (b)))
+#define Q32_MUL64(a, b) ((q32)(((i64)(a) * (i64)(b)) >> Q_FRAC))
+#define Q32_DIV64(a, b) ((q32)(((i64)(a) << Q_FRAC) / (b)))
+
+#define Q32_PI (Q32_FROM_F32(3.14159265358979f))
+#define Q32_TAU (Q32_FROM_F32(6.28318530717958f))
 
 typedef union {
     struct {
@@ -341,14 +368,13 @@ Arena arena_new(i32 cap, Arena *parent) {
 }
 
 handle arena_mark(Arena *a) { return a->used; }
-void   arena_reset(Arena *a, handle mark) {
-    if (mark > a->used) return;
-    a->used = mark;
-}
-u8 *alloc_perm(i32 size) { return alloc(size, &ctx()->perm); }
-u8 *alloc_temp(i32 size) { return alloc(size, &ctx()->temp); }
+void   arena_reset(Arena *a, handle mark) { a->used = min(a->used, mark); }
+u8    *alloc_perm(i32 size) { return alloc(size, &ctx()->perm); }
+u8    *alloc_temp(i32 size) { return alloc(size, &ctx()->temp); }
 #define ALLOC(type) (type *)alloc_perm(sizeof(type))
 #define ALLOC_ARRAY(type, count) (type *)alloc_perm(sizeof(type) * (count))
+#define ALLOC_TEMP(type) (type *)alloc_temp(sizeof(type))
+#define ALLOC_TEMP_ARRAY(type, count) (type *)alloc_temp(sizeof(type) * (count))
 
 typedef struct {
     u8 *text;
@@ -362,7 +388,7 @@ char *string_format(Arena *a, char *fmt, ...);
 
 typedef struct {
     i32 a, b, c;       // vertex indices
-    v2  uva, uvb, uvc; // texture coordinates per vertex (q8, range [0, Q8(1)])
+    v2  uva, uvb, uvc; // [0, Q8(1)]
 } Face;
 
 typedef struct {

@@ -1,5 +1,6 @@
 #define ENGINE_IMPL
-#include "base_win.c"
+#include "base.c"
+#include "engine.c"
 #include "profiler.c"
 
 void tcc_err(void *opaque, const char *msg) { printf(msg); }
@@ -422,8 +423,8 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                 if (sleep_ms > 0) Sleep(sleep_ms);
             }
 
-            ctx()->temp.used = 0;
-            dt               = now_seconds() - frame_start;
+            arena_reset(&ctx()->temp, 0);
+            dt = now_seconds() - frame_start;
         }
         rep_end(&rep);
     }
