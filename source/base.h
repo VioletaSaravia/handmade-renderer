@@ -605,7 +605,7 @@ bool gui_toggle(char *name, q8 x, q8 y, bool *val);
 
 // IO
 
-string file_read(char *path);
+string file_read(char *path, Arena *a);
 i32    file_write(char *path, char *data);
 
 void *image_read(char *path);

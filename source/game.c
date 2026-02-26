@@ -34,18 +34,21 @@ struct Data {
     EntityID *entities;
     i32       count, cap;
     m3       *obj_transform;
-    Mesh     *obj_mesh;
+    Mesh      obj_mesh;
     Texture  *obj_tex;
 };
 
 export void init() {
     init_default_texture();
+    string cube_data = file_read("./assets/cube.obj", &ctx()->temp);
+    Mesh   cube      = mesh_from_obj(&ctx()->perm, (char *)cube_data.text);
+
     *data = (Data){
         .cam        = {.pos = (v3){0, 0, Q8(3)}},
         .entities   = ALLOC_ARRAY(EntityID, ENTITY_MAX),
         .count      = 0,
         .cap        = ENTITY_MAX,
-        .obj_mesh   = &cube,
+        .obj_mesh   = cube,
         .obj_tex    = &default_texture,
         .fg         = rgb(110, 124, 205),
         .bg         = rgb(51, 45, 116),
