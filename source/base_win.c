@@ -258,7 +258,7 @@ string file_read(char *path, Arena *a) {
         return (string){0};
     }
 
-    char *buffer     = alloc((u64)file_size + 1, a);
+    char *buffer     = alloc((u64)file_size, a);
     DWORD bytes_read = 0;
     if (!ReadFile(file, buffer, file_size, &bytes_read, NULL) || bytes_read != file_size) {
         ERR("Failed to read file %s. Error code: %lu", path, GetLastError());
@@ -266,7 +266,6 @@ string file_read(char *path, Arena *a) {
         return (string){0};
     }
 
-    buffer[file_size] = '\0';
     CloseHandle(file);
     return (string){.text = buffer, .len = file_size};
 }

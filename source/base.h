@@ -445,26 +445,28 @@ f32 strtof(cstr str, char **endptr) {
 }
 i64 strtol(cstr, char **, i32);
 
-Mesh mesh_from_obj(Arena *a, cstr obj) {
+Mesh mesh_from_obj(Arena *a, string obj) {
     // --- First pass: count vertices, texture coords, and faces ---
-    i32  vert_count = 0, uv_count = 0, face_count = 0;
-    cstr p = obj;
-    while (*p) {
-        while (*p == ' ' || *p == '\t')
-            p++;
-        if (p[0] == 'v' && p[1] == 't' && p[2] == ' ')
-            uv_count++;
-        else if (p[0] == 'v' && p[1] == ' ')
-            vert_count++;
-        else if (p[0] == 'f' && p[1] == ' ')
-            face_count++;
-        while (*p && *p != '\n' && *p != '\r')
-            p++;
-        if (*p == '\r') p++;
-        if (*p == '\n') p++;
+    i32 vert_count = 0;
+    i32 uv_count   = 0;
+    i32 face_count = 0;
+    for (i32 i = 0; i < obj.len;) {
+        switch (obj.text[i]) {
+        case 'v':
+            if (i + 1 < obj.len && obj.text[i + 1] == 't')
+                uv_count++;
+            else
+                vert_count++;
+            break;
+        case 'f': face_count++; break;
+        case '#': // comment
+        case ' ':
+        case '\t':
+        case '\n':
+        case '\r': break;
+        }
     }
 
-    // --- Allocate mesh data ---
     Mesh result = {
         .verts       = (v3 *)alloc(sizeof(v3) * vert_count, a),
         .verts_count = vert_count,
@@ -472,7 +474,6 @@ Mesh mesh_from_obj(Arena *a, cstr obj) {
         .faces_count = face_count,
     };
 
-    // Temp storage for UVs (freed after parsing)
     handle temp_mark = arena_mark(&ctx()->temp);
     v2    *uvs       = uv_count > 0 ? ALLOC_TEMP_ARRAY(v2, uv_count) : 0;
 
@@ -482,8 +483,8 @@ Mesh mesh_from_obj(Arena *a, cstr obj) {
     i32   fi  = 0;
     char *end = '\0';
 
-    p = obj;
-    while (*p) {
+    for (i32 i = 0; i < obj.len;) {
+        cstr p = obj.text + i;
         while (*p == ' ' || *p == '\t')
             p++;
 
@@ -540,6 +541,7 @@ Mesh mesh_from_obj(Arena *a, cstr obj) {
             p++;
         if (*p == '\r') p++;
         if (*p == '\n') p++;
+        i = (i32)(p - obj.text);
     }
 
     arena_reset(&ctx()->temp, temp_mark);

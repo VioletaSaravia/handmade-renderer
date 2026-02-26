@@ -42,7 +42,7 @@ export void init() {
     init_default_texture();
     data->level_mark = arena_mark(&ctx()->perm);
     string cube_data = file_read("./assets/cube.obj", &ctx()->temp);
-    Mesh   cube      = mesh_from_obj(&ctx()->perm, (char *)cube_data.text);
+    Mesh   cube      = mesh_from_obj(&ctx()->perm, cube_data);
 
     *data = (Data){
         .cam        = {.pos = (v3){0, 0, Q8(3)}},
