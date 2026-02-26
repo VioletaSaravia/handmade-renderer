@@ -1,5 +1,7 @@
 #pragma once
 
+#include <winnt.h>
+
 #include "base.h"
 #include "base_win.h"
 
@@ -49,10 +51,13 @@ typedef struct {
     u64  start;
     i32  initial_counter;
 
-    Block blocks[MAX_BLOCKS];
     i32   blocks_len;
-    u64   queue[MAX_BLOCKS];
-    i32   queue_len;
+    Block blocks[MAX_BLOCKS];
+    Block avgs[MAX_BLOCKS];
+    i32   avg_of;
+
+    u64 queue[MAX_BLOCKS];
+    i32 queue_len;
 } LoopProfiler;
 
 LoopProfiler loopprofiler_new(cstr name, i32 initial_counter);

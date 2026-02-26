@@ -204,6 +204,18 @@ bool gui_toggle(char *name, q8 x, q8 y, bool *val) {
     return pressed;
 }
 
+internal inline void _mm_pause() {
+#if defined(__x86_64__) || defined(__i386__)
+    __asm__ volatile("pause");
+#elif defined(__aarch64__)
+    __asm__ volatile("yield");
+#elif defined(__arm__)
+    __asm__ volatile("yield");
+#else
+    // no-op
+#endif
+}
+
 #define THREAD_COUNT 8
 void thread_barrier() {
     persist volatile i64 barrier_count      = 0;
@@ -218,7 +230,7 @@ void thread_barrier() {
         InterlockedIncrement(&barrier_generation);
     } else {
         while (read_acquire(&barrier_generation) == gen) {
-            YieldProcessor();
+            _mm_pause();
         }
     }
 }

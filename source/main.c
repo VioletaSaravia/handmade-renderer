@@ -111,7 +111,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                 },
             .prev_placement = {sizeof(WINDOWPLACEMENT)},
             .screen_size    = {.w = 640, .h = 360},
-            .draw_size      = 1024,
+            .draw_size      = 20000,
             .metrics        = metrics_init(),
             .system_info    = systeminfo_init(),
             .profiler       = profiler_new("Handmade Renderer"),
@@ -238,6 +238,9 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
         {
             LOOP_BLOCK("Render");
             LOOP_BLOCK_BYTES(G->draw_count * sizeof(DrawCmd));
+
+            if (G->draw_count == G->draw_size) WARN("Maximum draw_size reached");
+
             HDC  hdc = GetDC(G->hwnd);
             RECT rc  = {0};
             GetClientRect(G->hwnd, &rc);
@@ -445,6 +448,8 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
         LOOP_END();
     }
+
+    loop_print(&EG()->loop_profiler);
 
     if (G->game.quit) G->game.quit();
     profiler_end();

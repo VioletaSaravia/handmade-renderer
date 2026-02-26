@@ -33,7 +33,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                 },
             .prev_placement = {sizeof(WINDOWPLACEMENT)},
             .screen_size    = {.w = 640, .h = 360},
-            .draw_size      = 1024,
+            .draw_size      = 20000,
         };
 
         ctx()->temp = (Arena){.data = alloc_perm(KB(64)), .used = 0, .cap = KB(64)};
