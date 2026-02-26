@@ -242,3 +242,31 @@ KeyState GetAction(Action a) {
     }
     return KS_RELEASED;
 };
+
+string file_read(char *path, Arena *a) {
+    HANDLE file = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
+                              FILE_ATTRIBUTE_NORMAL, NULL);
+    if (file == INVALID_HANDLE_VALUE) {
+        ERR("Failed to open file %s. Error code: %lu", path, GetLastError());
+        return (string){0};
+    }
+
+    DWORD file_size = GetFileSize(file, NULL);
+    if (file_size == INVALID_FILE_SIZE) {
+        ERR("Failed to get file size for %s. Error code: %lu", path, GetLastError());
+        CloseHandle(file);
+        return (string){0};
+    }
+
+    char *buffer     = alloc((u64)file_size + 1, a);
+    DWORD bytes_read = 0;
+    if (!ReadFile(file, buffer, file_size, &bytes_read, NULL) || bytes_read != file_size) {
+        ERR("Failed to read file %s. Error code: %lu", path, GetLastError());
+        CloseHandle(file);
+        return (string){0};
+    }
+
+    buffer[file_size] = '\0';
+    CloseHandle(file);
+    return (string){.text = buffer, .len = file_size};
+}

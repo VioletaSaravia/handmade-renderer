@@ -40,6 +40,7 @@ struct Data {
 
 export void init() {
     init_default_texture();
+    data->level_mark = arena_mark(&ctx()->perm);
     string cube_data = file_read("./assets/cube.obj", &ctx()->temp);
     Mesh   cube      = mesh_from_obj(&ctx()->perm, (char *)cube_data.text);
 
@@ -65,7 +66,6 @@ export void init() {
         .tilemap_size = (v2i){64, 64},
     };
 
-    data->level_mark    = arena_mark(&ctx()->perm);
     data->obj_transform = ALLOC_ARRAY(m3, ENTITY_MAX);
 
     for (i32 i = 0; i < ENTITY_MAX; i++) {

@@ -250,7 +250,7 @@ void loop_end(LoopProfiler *p) {
     loop_block_end(p);
 
     if (p->blocks_len || p->queue_len)
-        ERR("%d blocks left in loop profiler %s", p->blocks_len, p->name);
+        ERR("%d blocks not closed in loop profiler %s", p->blocks_len, p->name);
 
     for (i32 i = 0; i < MAX_BLOCKS; i++) {
         Block next   = p->blocks[i];

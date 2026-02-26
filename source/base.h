@@ -343,9 +343,15 @@ typedef struct {
     i32   used, cap;
 } Arena;
 
+// TODO
+typedef struct GUICtx GUICtx;
+typedef struct Logger Logger;
+
 typedef struct {
-    Arena perm;
-    Arena temp;
+    Arena   perm;
+    Arena   temp;
+    GUICtx *gui;
+    Logger *logger;
 } Context;
 
 typedef struct EngineData EngineData;
@@ -548,51 +554,10 @@ typedef union {
     };
 } m3;
 
-const global m3 m3_id = {.val = {{Q8(1), 0, 0}, {0, Q8(1), 0}, {0, 0, Q8(1)}}};
-
 typedef q8 m4[4][4];
 
+const global m3 m3_id = {.val = {{Q8(1), 0, 0}, {0, Q8(1), 0}, {0, 0, Q8(1)}}};
 const global m4 m4_id = {{Q8(1), 0, 0, 0}, {0, Q8(1), 0, 0}, {0, 0, Q8(1), 0}, {0, 0, 0, Q8(1)}};
-
-global v3 cube_mesh[8] = {
-    {Q8(1) >> 1, Q8(-1) >> 1, Q8(1) >> 1},  {Q8(-1) >> 1, Q8(-1) >> 1, Q8(1) >> 1},
-    {Q8(-1) >> 1, Q8(1) >> 1, Q8(1) >> 1},  {Q8(1) >> 1, Q8(1) >> 1, Q8(1) >> 1},
-    {Q8(1) >> 1, Q8(-1) >> 1, Q8(-1) >> 1}, {Q8(-1) >> 1, Q8(-1) >> 1, Q8(-1) >> 1},
-    {Q8(-1) >> 1, Q8(1) >> 1, Q8(-1) >> 1}, {Q8(1) >> 1, Q8(1) >> 1, Q8(-1) >> 1},
-};
-
-#define UV0 {0, 0}
-#define UV1 {Q8(1), 0}
-#define UV2 {Q8(1), Q8(1)}
-#define UV3 {0, Q8(1)}
-
-global Face cube_faces[12] = {
-    // Front face  (+z)
-    {0, 1, 2, UV0, UV1, UV2},
-    {0, 2, 3, UV0, UV2, UV3},
-    // Back face   (-z)
-    {5, 4, 7, UV0, UV1, UV2},
-    {5, 7, 6, UV0, UV2, UV3},
-    // Top face    (-y)
-    {4, 5, 1, UV0, UV1, UV2},
-    {4, 1, 0, UV0, UV2, UV3},
-    // Bottom face (+y)
-    {3, 2, 6, UV0, UV1, UV2},
-    {3, 6, 7, UV0, UV2, UV3},
-    // Right face  (+x)
-    {4, 0, 3, UV0, UV1, UV2},
-    {4, 3, 7, UV0, UV2, UV3},
-    // Left face   (-x)
-    {1, 5, 6, UV0, UV1, UV2},
-    {1, 6, 2, UV0, UV2, UV3},
-};
-
-global Mesh cube = {
-    .verts       = cube_mesh,
-    .verts_count = 8,
-    .faces       = cube_faces,
-    .faces_count = 12,
-};
 
 // Collision
 
