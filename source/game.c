@@ -7,7 +7,7 @@ export Info game = {
     .version = "0.2.0",
 };
 
-#define ENTITY_MAX 25000
+#define ENTITY_MAX 2000
 
 typedef i32 EntityID;
 

@@ -49,6 +49,7 @@ void qsort(void *ptr, u64 count, u64 size, i32 (*comp)(const void *, const void 
 #define LIST_VAR "\n\t> "
 #define LIST_VAR2 "\t> "
 
+// TODO(violeta): hash and log repeats once!
 #define INFO(msg, ...) \
     printf(COL_INFO "[INFO]" COL_RESET "  [%s] " msg "\n", __func__, ##__VA_ARGS__)
 #define WARN(msg, ...) \
@@ -403,16 +404,45 @@ typedef struct {
     i32   faces_count;
 } Mesh;
 
-Mesh mesh_from_obj(Arena *a, const char *obj) {
-    // Forward declare C stdlib parsing functions
-    float strtof(const char *, char **);
-    long  strtol(const char *, char **, int);
+// Forward declare C stdlib parsing functions
+f32 strtof(cstr str, char **endptr) {
+    f32 result  = 0.0f;
+    f32 divisor = 1.0f;
+    i32 sign    = 1;
 
-    Mesh mesh = {0};
+    while (*str == ' ' || *str == '\t')
+        str++;
 
+    if (*str == '-') {
+        sign = -1;
+        str++;
+    } else if (*str == '+') {
+        str++;
+    }
+
+    while (*str >= '0' && *str <= '9') {
+        result = result * 10.0f + (*str - '0');
+        str++;
+    }
+
+    if (*str == '.') {
+        str++;
+        while (*str >= '0' && *str <= '9') {
+            divisor *= 10.0f;
+            result += (*str - '0') / divisor;
+            str++;
+        }
+    }
+
+    if (endptr) *endptr = (char *)str;
+    return sign * result;
+}
+i64 strtol(cstr, char **, i32);
+
+Mesh mesh_from_obj(Arena *a, cstr obj) {
     // --- First pass: count vertices, texture coords, and faces ---
-    i32         vert_count = 0, uv_count = 0, face_count = 0;
-    const char *p = obj;
+    i32  vert_count = 0, uv_count = 0, face_count = 0;
+    cstr p = obj;
     while (*p) {
         while (*p == ' ' || *p == '\t')
             p++;
@@ -428,19 +458,24 @@ Mesh mesh_from_obj(Arena *a, const char *obj) {
         if (*p == '\n') p++;
     }
 
-    // --- Allocate mesh data from the permanent arena ---
-    mesh.verts       = (v3 *)alloc(sizeof(v3) * vert_count, a);
-    mesh.verts_count = vert_count;
-    mesh.faces       = (Face *)alloc(sizeof(Face) * face_count, a);
-    mesh.faces_count = face_count;
+    // --- Allocate mesh data ---
+    Mesh result = {
+        .verts       = (v3 *)alloc(sizeof(v3) * vert_count, a),
+        .verts_count = vert_count,
+        .faces       = (Face *)alloc(sizeof(Face) * face_count, a),
+        .faces_count = face_count,
+    };
 
     // Temp storage for UVs (freed after parsing)
     handle temp_mark = arena_mark(&ctx()->temp);
     v2    *uvs       = uv_count > 0 ? ALLOC_TEMP_ARRAY(v2, uv_count) : 0;
 
     // --- Second pass: parse data ---
-    i32   vi = 0, uvi = 0, fi = 0;
-    char *end;
+    i32   vi  = 0;
+    i32   uvi = 0;
+    i32   fi  = 0;
+    char *end = '\0';
+
     p = obj;
     while (*p) {
         while (*p == ' ' || *p == '\t')
@@ -455,13 +490,13 @@ Mesh mesh_from_obj(Arena *a, const char *obj) {
             uvs[uvi++] = (v2){q8_from_f32(u), q8_from_f32(v)};
         } else if (p[0] == 'v' && p[1] == ' ') {
             p += 2;
-            f32 x            = strtof(p, &end);
-            p                = end;
-            f32 y            = strtof(p, &end);
-            p                = end;
-            f32 z            = strtof(p, &end);
-            p                = end;
-            mesh.verts[vi++] = (v3){q8_from_f32(x), q8_from_f32(y), q8_from_f32(z)};
+            f32 x              = strtof(p, &end);
+            p                  = end;
+            f32 y              = strtof(p, &end);
+            p                  = end;
+            f32 z              = strtof(p, &end);
+            p                  = end;
+            result.verts[vi++] = (v3){q8_from_f32(x), q8_from_f32(y), q8_from_f32(z)};
         } else if (p[0] == 'f' && p[1] == ' ') {
             p += 2;
             i32 idx[3]    = {0};
@@ -486,12 +521,12 @@ Mesh mesh_from_obj(Arena *a, const char *obj) {
                 }
             }
 
-            mesh.faces[fi].a   = idx[0];
-            mesh.faces[fi].b   = idx[1];
-            mesh.faces[fi].c   = idx[2];
-            mesh.faces[fi].uva = (uv_idx[0] >= 0 && uvs) ? uvs[uv_idx[0]] : (v2){0, 0};
-            mesh.faces[fi].uvb = (uv_idx[1] >= 0 && uvs) ? uvs[uv_idx[1]] : (v2){0, 0};
-            mesh.faces[fi].uvc = (uv_idx[2] >= 0 && uvs) ? uvs[uv_idx[2]] : (v2){0, 0};
+            result.faces[fi].a   = idx[0];
+            result.faces[fi].b   = idx[1];
+            result.faces[fi].c   = idx[2];
+            result.faces[fi].uva = (uv_idx[0] >= 0 && uvs) ? uvs[uv_idx[0]] : (v2){0, 0};
+            result.faces[fi].uvb = (uv_idx[1] >= 0 && uvs) ? uvs[uv_idx[1]] : (v2){0, 0};
+            result.faces[fi].uvc = (uv_idx[2] >= 0 && uvs) ? uvs[uv_idx[2]] : (v2){0, 0};
             fi++;
         }
 
@@ -502,7 +537,7 @@ Mesh mesh_from_obj(Arena *a, const char *obj) {
     }
 
     arena_reset(&ctx()->temp, temp_mark);
-    return mesh;
+    return result;
 }
 
 typedef union {

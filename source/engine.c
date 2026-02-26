@@ -213,18 +213,6 @@ internal inline i64 read_acquire(volatile i64 *src) {
     return val;
 }
 
-internal inline void _mm_pause(void) {
-#if defined(__x86_64__) || defined(__i386__)
-    __asm__ volatile("pause");
-#elif defined(__aarch64__)
-    __asm__ volatile("yield");
-#elif defined(__arm__)
-    __asm__ volatile("yield");
-#else
-    // no-op
-#endif
-}
-
 u8 *os_alloc(i32 size) {
     return (u8 *)VirtualAlloc(NULL, (SIZE_T)size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 }
