@@ -163,6 +163,13 @@ typedef union {
 
 typedef v2 uv;
 
+inline v2 v2_scale(v2 v, q8 s) {
+    return (v2) {
+        .x = q8_mul(v.x, s),
+        .y = q8_mul(v.y, s),
+    };
+}
+
 typedef union {
     struct {
         i32 x, y;
@@ -563,8 +570,13 @@ const global m4 m4_id = {{Q8(1), 0, 0, 0}, {0, Q8(1), 0, 0}, {0, 0, Q8(1), 0}, {
 
 // Collision
 
-typedef struct {
-    q8 x, y, w, h;
+typedef union {
+    struct {
+        q8 x, y, w, h;
+    };
+    struct {
+        v2 pos, size;
+    };
 } rect;
 
 typedef struct {

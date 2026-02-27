@@ -99,8 +99,9 @@ export void update(q8 dt) {
             i32 map_y = y % data->tilemap_size.y;
 
             u8 tile_id = data->tilemap[map_y * data->tilemap_size.x + map_x];
-            draw_rect((rect){q8_mul(Q8(x), data->tile_size), q8_mul(Q8(y), data->tile_size),
-                             data->tile_size, data->tile_size},
+            draw_rect((rect){.pos = v2_scale((v2){x, y}, data->tile_size),
+                             .w   = data->tile_size,
+                             .h   = data->tile_size},
                       data->solid_tiles[tile_id]);
         }
     }
