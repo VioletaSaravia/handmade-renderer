@@ -1,4 +1,5 @@
 #pragma once
+#include <stdint.h>
 
 #define export __declspec(dllexport)
 #define import __declspec(dllimport)
@@ -9,26 +10,26 @@
 
 typedef const char *cstr;
 
-typedef char          i8;
-typedef unsigned char u8;
+typedef int8_t  i8;
+typedef uint8_t u8;
 typedef u8 bool;
-#define false 0
-#define true 1
+#define false (bool)0
+#define true (bool)1
 
-typedef short          i16;
-typedef unsigned short u16;
+typedef int16_t  i16;
+typedef uint16_t u16;
 
-typedef int          i32;
-typedef unsigned int u32;
-typedef u32          col32;
+typedef int32_t  i32;
+typedef uint32_t u32;
+typedef u32      col32;
 #define rgb(r, g, b) ((col32)(((r) << 16) | ((g) << 8) | (b)))
 #define rgba(r, g, b, a) ((col32)(((a) << 24) | ((r) << 16) | ((g) << 8) | (b)))
 
 #define WHITE rgb(255, 255, 255)
 #define BLACK rgb(0, 0, 0)
 
-typedef long          i64;
-typedef unsigned long u64;
+typedef int64_t  i64;
+typedef uint64_t u64;
 
 #define KB(n) ((n) * 1024)
 #define MB(n) (KB(n) * 1024)

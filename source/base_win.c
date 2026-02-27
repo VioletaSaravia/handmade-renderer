@@ -223,11 +223,11 @@ void thread_barrier() {
     persist const i32    barrier_total      = THREAD_COUNT;
 
     i64 gen       = read_acquire(&barrier_generation);
-    i64 new_count = InterlockedIncrement(&barrier_count);
+    i64 new_count = InterlockedIncrement((LONG *)&barrier_count);
 
     if (new_count == barrier_total) {
-        InterlockedExchange(&barrier_count, 0);
-        InterlockedIncrement(&barrier_generation);
+        InterlockedExchange((LONG *)&barrier_count, 0);
+        InterlockedIncrement((LONG *)&barrier_generation);
     } else {
         while (read_acquire(&barrier_generation) == gen) {
             _mm_pause();
