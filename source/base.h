@@ -452,46 +452,44 @@ f32 strtof(cstr str, char **endptr) {
 }
 i64 strtol(cstr, char **, i32);
 
-Mesh mesh_from_obj(Arena *a, string obj) {
+// float strtof(const char *, char **);
+// long  strtol(const char *, char **, int);
+Mesh mesh_from_obj(Arena *a, cstr obj) {
+    Mesh mesh = {0};
+
     // --- First pass: count vertices, texture coords, and faces ---
-    i32 vert_count = 0;
-    i32 uv_count   = 0;
-    i32 face_count = 0;
-    for (i32 i = 0; i < obj.len;) {
-        switch (obj.text[i]) {
-        case 'v':
-            if (i + 1 < obj.len && obj.text[i + 1] == 't')
-                uv_count++;
-            else
-                vert_count++;
-            break;
-        case 'f': face_count++; break;
-        case '#': // comment
-        case ' ':
-        case '\t':
-        case '\n':
-        case '\r': break;
-        }
+    i32         vert_count = 0, uv_count = 0, face_count = 0;
+    const char *p = obj;
+    while (*p) {
+        while (*p == ' ' || *p == '\t')
+            p++;
+        if (p[0] == 'v' && p[1] == 't' && p[2] == ' ')
+            uv_count++;
+        else if (p[0] == 'v' && p[1] == ' ')
+            vert_count++;
+        else if (p[0] == 'f' && p[1] == ' ')
+            face_count++;
+        while (*p && *p != '\n' && *p != '\r')
+            p++;
+        if (*p == '\r') p++;
+        if (*p == '\n') p++;
     }
 
-    Mesh result = {
-        .verts       = (v3 *)alloc(sizeof(v3) * vert_count, a),
-        .verts_count = vert_count,
-        .faces       = (Face *)alloc(sizeof(Face) * face_count, a),
-        .faces_count = face_count,
-    };
+    // --- Allocate mesh data from the permanent arena ---
+    mesh.verts       = (v3 *)alloc(sizeof(v3) * vert_count, a);
+    mesh.verts_count = vert_count;
+    mesh.faces       = (Face *)alloc(sizeof(Face) * face_count, a);
+    mesh.faces_count = face_count;
 
+    // Temp storage for UVs (freed after parsing)
     handle temp_mark = arena_mark(&ctx()->temp);
     v2    *uvs       = uv_count > 0 ? ALLOC_TEMP_ARRAY(v2, uv_count) : 0;
 
     // --- Second pass: parse data ---
-    i32   vi  = 0;
-    i32   uvi = 0;
-    i32   fi  = 0;
-    char *end = '\0';
-
-    for (i32 i = 0; i < obj.len;) {
-        cstr p = obj.text + i;
+    i32   vi = 0, uvi = 0, fi = 0;
+    char *end;
+    p = obj;
+    while (*p) {
         while (*p == ' ' || *p == '\t')
             p++;
 
@@ -504,13 +502,13 @@ Mesh mesh_from_obj(Arena *a, string obj) {
             uvs[uvi++] = (v2){q8_from_f32(u), q8_from_f32(v)};
         } else if (p[0] == 'v' && p[1] == ' ') {
             p += 2;
-            f32 x              = strtof(p, &end);
-            p                  = end;
-            f32 y              = strtof(p, &end);
-            p                  = end;
-            f32 z              = strtof(p, &end);
-            p                  = end;
-            result.verts[vi++] = (v3){q8_from_f32(x), q8_from_f32(y), q8_from_f32(z)};
+            f32 x            = strtof(p, &end);
+            p                = end;
+            f32 y            = strtof(p, &end);
+            p                = end;
+            f32 z            = strtof(p, &end);
+            p                = end;
+            mesh.verts[vi++] = (v3){q8_from_f32(x), q8_from_f32(y), q8_from_f32(z)};
         } else if (p[0] == 'f' && p[1] == ' ') {
             p += 2;
             i32 idx[3]    = {0};
@@ -535,12 +533,12 @@ Mesh mesh_from_obj(Arena *a, string obj) {
                 }
             }
 
-            result.faces[fi].a   = idx[0];
-            result.faces[fi].b   = idx[1];
-            result.faces[fi].c   = idx[2];
-            result.faces[fi].uva = (uv_idx[0] >= 0 && uvs) ? uvs[uv_idx[0]] : (v2){0, 0};
-            result.faces[fi].uvb = (uv_idx[1] >= 0 && uvs) ? uvs[uv_idx[1]] : (v2){0, 0};
-            result.faces[fi].uvc = (uv_idx[2] >= 0 && uvs) ? uvs[uv_idx[2]] : (v2){0, 0};
+            mesh.faces[fi].a   = idx[0];
+            mesh.faces[fi].b   = idx[1];
+            mesh.faces[fi].c   = idx[2];
+            mesh.faces[fi].uva = (uv_idx[0] >= 0 && uvs) ? uvs[uv_idx[0]] : (v2){0, 0};
+            mesh.faces[fi].uvb = (uv_idx[1] >= 0 && uvs) ? uvs[uv_idx[1]] : (v2){0, 0};
+            mesh.faces[fi].uvc = (uv_idx[2] >= 0 && uvs) ? uvs[uv_idx[2]] : (v2){0, 0};
             fi++;
         }
 
@@ -548,11 +546,10 @@ Mesh mesh_from_obj(Arena *a, string obj) {
             p++;
         if (*p == '\r') p++;
         if (*p == '\n') p++;
-        i = (i32)(p - obj.text);
     }
 
     arena_reset(&ctx()->temp, temp_mark);
-    return result;
+    return mesh;
 }
 
 typedef union {

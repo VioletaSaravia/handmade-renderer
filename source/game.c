@@ -42,7 +42,7 @@ export void init() {
     init_default_texture();
     data->level_mark = arena_mark(&ctx()->perm);
     string cube_data = file_read("./assets/cube.obj", &ctx()->temp);
-    Mesh   cube      = mesh_from_obj(&ctx()->perm, cube_data);
+    Mesh   cube      = mesh_from_obj(&ctx()->perm, (char *)cube_data.text);
 
     *data = (Data){
         .cam        = {.pos = (v3){0, 0, Q8(3)}},
@@ -99,9 +99,10 @@ export void update(q8 dt) {
             i32 map_y = y % data->tilemap_size.y;
 
             u8 tile_id = data->tilemap[map_y * data->tilemap_size.x + map_x];
-            draw_rect((rect){.pos = v2_scale((v2){x, y}, data->tile_size),
-                             .w   = data->tile_size,
-                             .h   = data->tile_size},
+            draw_rect((rect){.x = q8_mul(data->tile_size, x),
+                             .y = q8_mul(data->tile_size, y),
+                             .w = data->tile_size,
+                             .h = data->tile_size},
                       data->solid_tiles[tile_id]);
         }
     }
