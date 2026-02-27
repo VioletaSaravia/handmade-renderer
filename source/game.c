@@ -4,15 +4,18 @@
 
 export Info game = {
     .name    = "Handmade Renderer",
-    .version = "0.2.0",
+    .version = "0.2.1",
     .keybinds =
         {
-            [A_UP]     = {K_UP, K_W},
-            [A_DOWN]   = {K_DOWN, K_R},
-            [A_LEFT]   = {K_LEFT, K_A},
-            [A_RIGHT]  = {K_RIGHT, K_S},
-            [A_ACCEPT] = {K_ENTER},
-            [A_CANCEL] = {K_ESCAPE},
+            [A_FULLSCREEN] = {K_F11},
+            [A_QUIT]       = {K_F4 | M_SHIFT},
+            [A_RESET]      = {K_F5},
+            [A_UP]         = {K_UP, K_W},
+            [A_DOWN]       = {K_DOWN, K_R},
+            [A_LEFT]       = {K_LEFT, K_A},
+            [A_RIGHT]      = {K_RIGHT, K_S},
+            [A_ACCEPT]     = {K_ENTER},
+            [A_CANCEL]     = {K_ESCAPE},
         },
 };
 

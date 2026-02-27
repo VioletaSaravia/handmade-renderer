@@ -129,6 +129,10 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
     G->game = load_dll();
     if (!G->game.tcc) return 1;
+    // TODO(violeta): ???
+    // G->game.info->keybinds[A_FULLSCREEN] = (KeyCombo[2]){K_F11};
+    // G->game.info->keybinds[A_QUIT]       = (KeyCombo[2]){K_F4 | M_SHIFT};
+    // G->game.info->keybinds[A_RESET]      = (KeyCombo[2]){K_F5};
 
     G->game_memory = alloc_perm(G->game.gamedata_size());
     G->screen_buf  = ALLOC_ARRAY(u32, G->screen_size.w * G->screen_size.h);
@@ -185,18 +189,54 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
             case WM_KEYDOWN:
                 switch (G->msg.wParam) {
-                case VK_ESCAPE: DestroyWindow(G->hwnd); break;
-                case VK_F5: G->game.init(); break;
-                case VK_F11: FullscreenWindow(G->hwnd); break;
+                case VK_ESCAPE: break;
+                case VK_CONTROL: G->keys[K_CONTROL] = KS_JUST_PRESSED; break;
+                case VK_SHIFT: G->keys[K_SHIFT] = KS_JUST_PRESSED; break;
+
+                case VK_F1: G->keys[K_F1] = KS_JUST_PRESSED; break;
+                case VK_F2: G->keys[K_F2] = KS_JUST_PRESSED; break;
+                case VK_F3: G->keys[K_F3] = KS_JUST_PRESSED; break;
+                case VK_F4: G->keys[K_F4] = KS_JUST_PRESSED; break;
+                case VK_F5: G->keys[K_F5] = KS_JUST_PRESSED; break;
+                case VK_F6: G->keys[K_F6] = KS_JUST_PRESSED; break;
+                case VK_F7: G->keys[K_F7] = KS_JUST_PRESSED; break;
+                case VK_F8: G->keys[K_F8] = KS_JUST_PRESSED; break;
+                case VK_F9: G->keys[K_F9] = KS_JUST_PRESSED; break;
+                case VK_F10: G->keys[K_F10] = KS_JUST_PRESSED; break;
+                case VK_F11: G->keys[K_F11] = KS_JUST_PRESSED; break;
+                case VK_F12: G->keys[K_F12] = KS_JUST_PRESSED; break;
 
                 case VK_UP: G->keys[K_UP] = KS_JUST_PRESSED; break;
                 case VK_DOWN: G->keys[K_DOWN] = KS_JUST_PRESSED; break;
                 case VK_LEFT: G->keys[K_LEFT] = KS_JUST_PRESSED; break;
                 case VK_RIGHT: G->keys[K_RIGHT] = KS_JUST_PRESSED; break;
+
+                case 'Q': G->keys[K_Q] = KS_JUST_PRESSED; break;
                 case 'W': G->keys[K_W] = KS_JUST_PRESSED; break;
+                case 'F': G->keys[K_F] = KS_JUST_PRESSED; break;
+                case 'P': G->keys[K_P] = KS_JUST_PRESSED; break;
+                case 'G': G->keys[K_G] = KS_JUST_PRESSED; break;
+                case 'J': G->keys[K_J] = KS_JUST_PRESSED; break;
+                case 'L': G->keys[K_L] = KS_JUST_PRESSED; break;
+                case 'U': G->keys[K_U] = KS_JUST_PRESSED; break;
+                case 'Y': G->keys[K_Y] = KS_JUST_PRESSED; break;
                 case 'A': G->keys[K_A] = KS_JUST_PRESSED; break;
                 case 'R': G->keys[K_R] = KS_JUST_PRESSED; break;
                 case 'S': G->keys[K_S] = KS_JUST_PRESSED; break;
+                case 'T': G->keys[K_T] = KS_JUST_PRESSED; break;
+                case 'D': G->keys[K_D] = KS_JUST_PRESSED; break;
+                case 'H': G->keys[K_H] = KS_JUST_PRESSED; break;
+                case 'N': G->keys[K_N] = KS_JUST_PRESSED; break;
+                case 'E': G->keys[K_E] = KS_JUST_PRESSED; break;
+                case 'I': G->keys[K_I] = KS_JUST_PRESSED; break;
+                case 'O': G->keys[K_O] = KS_JUST_PRESSED; break;
+                case 'Z': G->keys[K_Z] = KS_JUST_PRESSED; break;
+                case 'X': G->keys[K_X] = KS_JUST_PRESSED; break;
+                case 'C': G->keys[K_C] = KS_JUST_PRESSED; break;
+                case 'V': G->keys[K_V] = KS_JUST_PRESSED; break;
+                case 'B': G->keys[K_B] = KS_JUST_PRESSED; break;
+                case 'K': G->keys[K_K] = KS_JUST_PRESSED; break;
+                case 'M': G->keys[K_M] = KS_JUST_PRESSED; break;
 
                 default: break;
                 }
@@ -204,14 +244,53 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
             case WM_KEYUP:
                 switch (G->msg.wParam) {
+                case VK_CONTROL: G->keys[K_CONTROL] = KS_JUST_RELEASED; break;
+                case VK_SHIFT: G->keys[K_SHIFT] = KS_JUST_RELEASED; break;
+
                 case VK_UP: G->keys[K_UP] = KS_JUST_RELEASED; break;
                 case VK_DOWN: G->keys[K_DOWN] = KS_JUST_RELEASED; break;
                 case VK_LEFT: G->keys[K_LEFT] = KS_JUST_RELEASED; break;
                 case VK_RIGHT: G->keys[K_RIGHT] = KS_JUST_RELEASED; break;
+
+                case VK_F1: G->keys[K_F1] = KS_JUST_RELEASED; break;
+                case VK_F2: G->keys[K_F2] = KS_JUST_RELEASED; break;
+                case VK_F3: G->keys[K_F3] = KS_JUST_RELEASED; break;
+                case VK_F4: G->keys[K_F4] = KS_JUST_RELEASED; break;
+                case VK_F5: G->keys[K_F5] = KS_JUST_RELEASED; break;
+                case VK_F6: G->keys[K_F6] = KS_JUST_RELEASED; break;
+                case VK_F7: G->keys[K_F7] = KS_JUST_RELEASED; break;
+                case VK_F8: G->keys[K_F8] = KS_JUST_RELEASED; break;
+                case VK_F9: G->keys[K_F9] = KS_JUST_RELEASED; break;
+                case VK_F10: G->keys[K_F10] = KS_JUST_RELEASED; break;
+                case VK_F11: G->keys[K_F11] = KS_JUST_RELEASED; break;
+                case VK_F12: G->keys[K_F12] = KS_JUST_RELEASED; break;
+
+                case 'Q': G->keys[K_Q] = KS_JUST_RELEASED; break;
                 case 'W': G->keys[K_W] = KS_JUST_RELEASED; break;
+                case 'F': G->keys[K_F] = KS_JUST_RELEASED; break;
+                case 'P': G->keys[K_P] = KS_JUST_RELEASED; break;
+                case 'G': G->keys[K_G] = KS_JUST_RELEASED; break;
+                case 'J': G->keys[K_J] = KS_JUST_RELEASED; break;
+                case 'L': G->keys[K_L] = KS_JUST_RELEASED; break;
+                case 'U': G->keys[K_U] = KS_JUST_RELEASED; break;
+                case 'Y': G->keys[K_Y] = KS_JUST_RELEASED; break;
                 case 'A': G->keys[K_A] = KS_JUST_RELEASED; break;
                 case 'R': G->keys[K_R] = KS_JUST_RELEASED; break;
                 case 'S': G->keys[K_S] = KS_JUST_RELEASED; break;
+                case 'T': G->keys[K_T] = KS_JUST_RELEASED; break;
+                case 'D': G->keys[K_D] = KS_JUST_RELEASED; break;
+                case 'H': G->keys[K_H] = KS_JUST_RELEASED; break;
+                case 'N': G->keys[K_N] = KS_JUST_RELEASED; break;
+                case 'E': G->keys[K_E] = KS_JUST_RELEASED; break;
+                case 'I': G->keys[K_I] = KS_JUST_RELEASED; break;
+                case 'O': G->keys[K_O] = KS_JUST_RELEASED; break;
+                case 'Z': G->keys[K_Z] = KS_JUST_RELEASED; break;
+                case 'X': G->keys[K_X] = KS_JUST_RELEASED; break;
+                case 'C': G->keys[K_C] = KS_JUST_RELEASED; break;
+                case 'V': G->keys[K_V] = KS_JUST_RELEASED; break;
+                case 'B': G->keys[K_B] = KS_JUST_RELEASED; break;
+                case 'K': G->keys[K_K] = KS_JUST_RELEASED; break;
+                case 'M': G->keys[K_M] = KS_JUST_RELEASED; break;
 
                 default: break;
                 }
@@ -230,6 +309,10 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             TranslateMessage(&G->msg);
             DispatchMessage(&G->msg);
         }
+
+        if (GetAction(A_FULLSCREEN) == KS_JUST_PRESSED) FullscreenWindow(G->hwnd);
+        if (GetAction(A_QUIT) == KS_JUST_PRESSED) DestroyWindow(G->hwnd);
+        if (GetAction(A_RESET) == KS_JUST_PRESSED) G->game.init();
 
         LOOP_BLOCK("Update");
         G->game.update((q8)(dt * 256.0f));
@@ -448,8 +531,6 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
         LOOP_END();
     }
-
-    loop_print(&EG()->loop_profiler);
 
     if (G->game.quit) G->game.quit();
     profiler_end();

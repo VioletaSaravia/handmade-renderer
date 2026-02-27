@@ -60,9 +60,9 @@ typedef struct {
 } DrawCmd;
 
 typedef struct {
-    cstr name;
-    cstr version;
-    Key  keybinds[A_COUNT][2];
+    cstr     name;
+    cstr     version;
+    KeyCombo keybinds[A_COUNT][2];
 } Info;
 
 struct Metrics {

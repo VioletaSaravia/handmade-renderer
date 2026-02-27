@@ -237,8 +237,22 @@ void thread_barrier() {
 
 KeyState GetAction(Action a) {
     for (i32 i = 0; i < 2; i++) {
-        KeyState state = EG()->keys[EG()->game.info->keybinds[a][i]];
-        if (state != KS_RELEASED) return state;
+        KeyCombo binding = EG()->game.info->keybinds[a][i];
+        KeyState state   = EG()->keys[binding & 0xFFFF];
+        if (state == KS_RELEASED) continue;
+
+        i32 mods = binding >> MOD_BYTES_USED;
+        for (i32 j = 0; j < M_COUNT; j++) {
+            bool used = (mods & (1 << j)) != 0;
+            if (!used) continue;
+
+            // In Key, [1:j+1] map to the mod keys.
+            bool held = EG()->keys[j + 1] >= KS_JUST_PRESSED;
+            if (held) draw_text("HELD", 200, 100, WHITE);
+            if (!held) return KS_RELEASED;
+        }
+
+        return state;
     }
     return KS_RELEASED;
 };
