@@ -62,6 +62,7 @@ typedef struct {
 typedef struct {
     cstr name;
     cstr version;
+    Key  keybinds[A_COUNT][2];
 } Info;
 
 struct Metrics {

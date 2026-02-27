@@ -651,14 +651,4 @@ typedef enum {
     KS_PRESSED,
 } KeyState;
 
-// TODO(violeta): Move to Info
-global Key Keybinds[A_COUNT][2] = {
-    [A_UP]     = {K_UP, K_W},    //
-    [A_DOWN]   = {K_DOWN, K_R},  //
-    [A_LEFT]   = {K_LEFT, K_A},  //
-    [A_RIGHT]  = {K_RIGHT, K_S}, //
-    [A_ACCEPT] = {K_ENTER},      //
-    [A_CANCEL] = {K_ESCAPE},     //
-};
-
 KeyState GetAction(Action k);

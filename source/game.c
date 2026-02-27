@@ -5,6 +5,15 @@
 export Info game = {
     .name    = "Handmade Renderer",
     .version = "0.2.0",
+    .keybinds =
+        {
+            [A_UP]     = {K_UP, K_W},
+            [A_DOWN]   = {K_DOWN, K_R},
+            [A_LEFT]   = {K_LEFT, K_A},
+            [A_RIGHT]  = {K_RIGHT, K_S},
+            [A_ACCEPT] = {K_ENTER},
+            [A_CANCEL] = {K_ESCAPE},
+        },
 };
 
 #define ENTITY_MAX 2000
@@ -88,10 +97,10 @@ export void init() {
 }
 
 export void update(q8 dt) {
-    if (G->keys[K_UP] == KS_PRESSED) data->cam.pos.z -= dt;
-    if (G->keys[K_DOWN] == KS_PRESSED) data->cam.pos.z += dt;
-    if (G->keys[K_LEFT] == KS_PRESSED) data->cam.pos.x += dt;
-    if (G->keys[K_RIGHT] == KS_PRESSED) data->cam.pos.x -= dt;
+    if (GetAction(A_UP) >= KS_JUST_PRESSED) data->cam.pos.z -= dt;
+    if (GetAction(A_DOWN) >= KS_JUST_PRESSED) data->cam.pos.z += dt;
+    if (GetAction(A_LEFT) >= KS_JUST_PRESSED) data->cam.pos.x += dt;
+    if (GetAction(A_RIGHT) >= KS_JUST_PRESSED) data->cam.pos.x -= dt;
 
     for (i32 y = 0; y < G->screen_size.h / q8_to_i32(data->tile_size); y++) {
         for (i32 x = 0; x < G->screen_size.w / q8_to_i32(data->tile_size); x++) {

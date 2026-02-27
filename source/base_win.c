@@ -237,7 +237,7 @@ void thread_barrier() {
 
 KeyState GetAction(Action a) {
     for (i32 i = 0; i < 2; i++) {
-        KeyState state = EG()->keys[Keybinds[a][i]];
+        KeyState state = EG()->keys[EG()->game.info->keybinds[a][i]];
         if (state != KS_RELEASED) return state;
     }
     return KS_RELEASED;
