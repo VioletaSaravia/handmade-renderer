@@ -518,13 +518,13 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
     if (G->game.init) G->game.init();
 
-    for (i32 i = 1; i < 2; i++) {
-        G->thread_ctx[i] = thread_new(i, main_update, "", &G->thread_ctx[i]);
+    for (u32 i = 1; i < 1; i++) {
+        G->thread_ctx[i] = thread_new(i, main_update, "", (void *)&G->thread_ctx[i]);
     }
 
     main_update(&G->thread_ctx[0]);
 
-    for (i32 i = 1; i < 2; i++) {
+    for (u32 i = 1; i < 1; i++) {
         thread_wait(G->thread_ctx[i]);
     }
 

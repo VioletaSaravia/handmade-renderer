@@ -720,15 +720,15 @@ typedef void *Thread;
 
 typedef struct ThreadCtx {
     Thread  thread;
-    i32     id;
-    i32     os_id;
+    u32     id;
+    u32     os_id;
     Arena   temp;
     GUICtx *gui;
 } ThreadCtx;
 
-typedef i32 (*ThreadFunction)(void *);
+typedef u32 (*ThreadFunction)(void *);
 
-ThreadCtx thread_new(i32, ThreadFunction, cstr, void *);
-i32       thread_wait(ThreadCtx);
-i32       thread_id(ThreadCtx);
+ThreadCtx thread_new(u32, ThreadFunction, cstr, void *);
+u32       thread_wait(ThreadCtx);
+u32       thread_id(ThreadCtx);
 cstr      thread_name(ThreadCtx);

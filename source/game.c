@@ -4,7 +4,7 @@
 
 export Info game = {
     .name    = "Handmade Renderer",
-    .version = "0.2.1",
+    .version = "0.3.0",
     .keybinds =
         {
             [A_UP]     = {K_UP, K_W},

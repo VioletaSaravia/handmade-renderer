@@ -312,33 +312,26 @@ string file_read(char *path, Arena *a) {
     return (string){.text = buffer, .len = file_size};
 }
 
-uintptr_t _beginthreadex(
-   void *security,
-   unsigned stack_size,
-   unsigned ( __stdcall *start_address )( void * ),
-   void *arglist,
-   unsigned initflag,
-   unsigned *thrdaddr
-);
+Thread _beginthreadex(void *, u32, ThreadFunction, void *, u32, u32 *);
 
-ThreadCtx thread_new(i32 id, ThreadFunction fn, cstr name, void *userdata) {
+ThreadCtx thread_new(u32 id, ThreadFunction fn, cstr name, void *userdata) {
     ThreadCtx result = {.id = id};
     result.thread    = (Thread)_beginthreadex(NULL, 0, fn, userdata, 0, &result.os_id);
 
-    return result;
+    return result.thread ? result : (ThreadCtx){0};
 }
 
-i32 thread_wait(ThreadCtx thread) {
+u32 thread_wait(ThreadCtx thread) {
     if (!thread.thread) return;
 
     WaitForSingleObject(thread.thread, INFINITE);
 
-    i32 exit_code = 0;
-    GetExitCodeThread(thread.thread, &exit_code);
+    u32 exit_code = 0;
+    GetExitCodeThread(thread.thread, (LPDWORD)&exit_code);
 
     CloseHandle(thread.thread);
 
     return exit_code;
 }
-i32  thread_id(ThreadCtx thread) { return thread.os_id; }
+u32  thread_id(ThreadCtx thread) { return thread.os_id; }
 cstr thread_name(ThreadCtx thread) { return NULL; }
