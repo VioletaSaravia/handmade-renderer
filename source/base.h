@@ -727,8 +727,3 @@ typedef struct ThreadCtx {
 } ThreadCtx;
 
 typedef u32 (*ThreadFunction)(void *);
-
-ThreadCtx thread_new(u32, ThreadFunction, cstr, void *);
-u32       thread_wait(ThreadCtx);
-u32       thread_id(ThreadCtx);
-cstr      thread_name(ThreadCtx);

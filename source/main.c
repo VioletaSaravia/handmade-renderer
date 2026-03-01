@@ -1,3 +1,5 @@
+#define THREAD_COUNT 8
+
 #define ENGINE_IMPL
 #include "base.c"
 #include "engine.c"
@@ -102,6 +104,8 @@ void main_update(void *thread_ctx) {
     ThreadCtx *th = (ThreadCtx *)thread_ctx;
     while (!G->shutdown) {
         f64 frame_start = now_seconds();
+
+        // Input
         if (th->id == 0) {
             hot_reload();
 
@@ -249,8 +253,11 @@ void main_update(void *thread_ctx) {
             if (GetAction(A_RESET) == KS_JUST_PRESSED) G->game.init();
         }
 
+        thread_barrier();
         G->game.update((q8)(G->dt * 256.0f));
+        thread_barrier();
 
+        // Rendering
         if (th->id == 0) {
             if (G->draw_count == G->draw_size) WARN("Maximum draw_size reached");
 
@@ -437,6 +444,7 @@ void main_update(void *thread_ctx) {
             G->draw_count = 0;
         }
 
+        // Timing
         if (th->id == 0) {
             G->next_frame += G->target_dt;
 
@@ -449,6 +457,8 @@ void main_update(void *thread_ctx) {
             arena_reset(&ctx()->temp, 0);
             G->dt = now_seconds() - frame_start;
         }
+
+        thread_barrier();
     }
 }
 
@@ -518,14 +528,26 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
     if (G->game.init) G->game.init();
 
-    for (u32 i = 1; i < 1; i++) {
-        G->thread_ctx[i] = thread_new(i, main_update, "", (void *)&G->thread_ctx[i]);
+    for (u32 i = 1; i < 2; i++) {
+        ThreadCtx *ctx = &EG()->thread_ctx[i];
+        ctx->id        = i;
+        ctx->thread    = (Thread)_beginthreadex(NULL, 0, main_update, (void *)ctx, 0, &ctx->os_id);
+        INFO("Thread %u started", i);
     }
 
     main_update(&G->thread_ctx[0]);
 
-    for (u32 i = 1; i < 1; i++) {
-        thread_wait(G->thread_ctx[i]);
+    for (u32 i = 1; i < 2; i++) {
+        ThreadCtx *ctx = &EG()->thread_ctx[i];
+        if (!ctx->thread) continue;
+
+        WaitForSingleObject(ctx->thread, INFINITE);
+
+        u32 exit_code = 0;
+        GetExitCodeThread(ctx->thread, (LPDWORD)&exit_code);
+
+        CloseHandle(ctx->thread);
+        INFO("Thread %u closed", i);
     }
 
     if (G->game.quit) G->game.quit();
