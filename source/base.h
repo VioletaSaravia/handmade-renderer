@@ -1,6 +1,10 @@
 #pragma once
 #include <stdint.h>
 
+#ifndef THREAD_COUNT
+#define THREAD_COUNT 8
+#endif
+
 #define export __declspec(dllexport)
 #define import __declspec(dllimport)
 
@@ -356,6 +360,7 @@ typedef struct {
 } Context;
 
 typedef struct EngineData EngineData;
+typedef struct Info       Info;
 
 Context    *ctx();
 EngineData *EG();
@@ -688,7 +693,7 @@ typedef enum { M_CONTROL = 1 << 31, M_SHIFT = 1 << 30, M_ALT = 1 << 29, M_COUNT 
 // Key | ModKey
 typedef int KeyCombo;
 
-typedef enum {
+typedef enum Action {
     A_NONE = 0,
     A_FULLSCREEN,
     A_QUIT,
@@ -710,3 +715,20 @@ typedef enum {
 } KeyState;
 
 KeyState GetAction(Action k);
+
+typedef void *Thread;
+
+typedef struct ThreadCtx {
+    Thread  thread;
+    i32     id;
+    i32     os_id;
+    Arena   temp;
+    GUICtx *gui;
+} ThreadCtx;
+
+typedef i32 (*ThreadFunction)(void *);
+
+ThreadCtx thread_new(i32, ThreadFunction, cstr, void *);
+i32       thread_wait(ThreadCtx);
+i32       thread_id(ThreadCtx);
+cstr      thread_name(ThreadCtx);

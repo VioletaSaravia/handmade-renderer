@@ -3,7 +3,7 @@
 #include "engine.c"
 #include "profiler.c"
 
-void tcc_err(void *opaque, const char *msg) { printf(msg); }
+void tcc_err(void *opaque, cstr msg) { printf(string_format(&ctx()->temp, (char *)msg, "\n")); }
 
 static int draw_cmd_cmp(const void *a, const void *b) {
     const DrawCmd *da = (const DrawCmd *)a;
@@ -98,230 +98,160 @@ LRESULT CALLBACK WndProc(HWND hwnd, u32 message, WPARAM wParam, LPARAM lParam) {
     return 0;
 }
 
-i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, i32 nCmdShow) {
-    // SetProcessDPIAware();
-    {
-        Arena perm = arena_new(MB(32), NULL);
-
-        G  = (EngineData *)alloc(sizeof(EngineData), &perm);
-        *G = (EngineData){
-            .ctx =
-                {
-                    .perm = perm,
-                },
-            .prev_placement = {sizeof(WINDOWPLACEMENT)},
-            .screen_size    = {.w = 640, .h = 360},
-            .draw_size      = 20000,
-            .metrics        = metrics_init(),
-            .system_info    = systeminfo_init(),
-            .profiler       = profiler_new("Handmade Renderer"),
-        };
-        ctx()->temp = arena_new(MB(8), &ctx()->perm);
-    }
-
-    BLOCK_BEGIN("init");
-    G->draw_queue = ALLOC_ARRAY(DrawCmd, G->draw_size);
-
-    QueryPerformanceFrequency(&G->freq);
-    const f32 target_dt  = 1.0f / 60.0f;
-    f32       dt         = target_dt;
-    f64       next_frame = now_seconds();
-
-    G->game = load_dll();
-    if (!G->game.tcc) return 1;
-    // TODO(violeta): ???
-    // G->game.info->keybinds[A_FULLSCREEN] = (KeyCombo[2]){K_F11};
-    // G->game.info->keybinds[A_QUIT]       = (KeyCombo[2]){K_F4 | M_SHIFT};
-    // G->game.info->keybinds[A_RESET]      = (KeyCombo[2]){K_F5};
-
-    G->game_memory = alloc_perm(G->game.gamedata_size());
-    G->screen_buf  = ALLOC_ARRAY(u32, G->screen_size.w * G->screen_size.h);
-
-    WNDCLASS wc = {
-        .hInstance     = hInstance,
-        .lpszClassName = G->game.info->name,
-        .lpfnWndProc   = (WNDPROC)WndProc,
-        .style         = CS_DBLCLKS | CS_VREDRAW | CS_HREDRAW,
-        .hbrBackground = NULL, // (HBRUSH)GetStockObject(BLACK_BRUSH),
-        .hIcon         = LoadIcon(NULL, IDI_APPLICATION),
-        .hCursor       = LoadCursor(NULL, IDC_ARROW),
-    };
-
-    if (!RegisterClass(&wc)) return 0;
-
-    DWORD style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
-    RECT  wr    = {0, 0, G->screen_size.w, G->screen_size.h};
-    AdjustWindowRect(&wr, style, false);
-
-    cstr window_name =
-        string_format(&G->ctx.perm, "%s %s", G->game.info->name, G->game.info->version);
-    G->hwnd = CreateWindow(G->game.info->name, window_name, style, CW_USEDEFAULT, CW_USEDEFAULT,
-                           wr.right - wr.left, wr.bottom - wr.top, 0, 0, hInstance, 0);
-    if (!G->hwnd) return 0;
-
-    if (G->game.init) G->game.init();
-    BLOCK_END();
-
-    LOOP_PROFILER();
+void main_update(void *thread_ctx) {
+    ThreadCtx *th = (ThreadCtx *)thread_ctx;
     while (!G->shutdown) {
-        LOOP_BEGIN();
-
-        LOOP_BLOCK("Hot Reload");
-        hot_reload();
-        LOOP_BLOCK_END();
         f64 frame_start = now_seconds();
+        if (th->id == 0) {
+            hot_reload();
 
-        for (i32 i = 0; i < K_COUNT; i++) {
-            if (G->keys[i] == KS_JUST_RELEASED) G->keys[i] = KS_RELEASED;
-            if (G->keys[i] == KS_JUST_PRESSED) G->keys[i] = KS_PRESSED;
-        }
-
-        while (PeekMessage(&G->msg, NULL, 0, 0, PM_REMOVE)) {
-            switch (G->msg.message) {
-            case WM_QUIT: G->shutdown = true; break;
-
-            case WM_LBUTTONDOWN: G->keys[K_MOUSE_LEFT] = KS_JUST_PRESSED; break;
-            case WM_LBUTTONUP: G->keys[K_MOUSE_LEFT] = KS_JUST_RELEASED; break;
-            case WM_MBUTTONDOWN: G->keys[K_MOUSE_MID] = KS_JUST_PRESSED; break;
-            case WM_MBUTTONUP: G->keys[K_MOUSE_MID] = KS_JUST_RELEASED; break;
-            case WM_RBUTTONDOWN: G->keys[K_MOUSE_RIGHT] = KS_JUST_PRESSED; break;
-            case WM_RBUTTONUP: G->keys[K_MOUSE_RIGHT] = KS_JUST_RELEASED; break;
-
-            case WM_KEYDOWN:
-                switch (G->msg.wParam) {
-                case VK_ESCAPE: break;
-                case VK_CONTROL: G->keys[K_CONTROL] = KS_JUST_PRESSED; break;
-                case VK_SHIFT: G->keys[K_SHIFT] = KS_JUST_PRESSED; break;
-
-                case VK_F1: G->keys[K_F1] = KS_JUST_PRESSED; break;
-                case VK_F2: G->keys[K_F2] = KS_JUST_PRESSED; break;
-                case VK_F3: G->keys[K_F3] = KS_JUST_PRESSED; break;
-                case VK_F4: G->keys[K_F4] = KS_JUST_PRESSED; break;
-                case VK_F5: G->keys[K_F5] = KS_JUST_PRESSED; break;
-                case VK_F6: G->keys[K_F6] = KS_JUST_PRESSED; break;
-                case VK_F7: G->keys[K_F7] = KS_JUST_PRESSED; break;
-                case VK_F8: G->keys[K_F8] = KS_JUST_PRESSED; break;
-                case VK_F9: G->keys[K_F9] = KS_JUST_PRESSED; break;
-                case VK_F10: G->keys[K_F10] = KS_JUST_PRESSED; break;
-                case VK_F11: G->keys[K_F11] = KS_JUST_PRESSED; break;
-                case VK_F12: G->keys[K_F12] = KS_JUST_PRESSED; break;
-
-                case VK_UP: G->keys[K_UP] = KS_JUST_PRESSED; break;
-                case VK_DOWN: G->keys[K_DOWN] = KS_JUST_PRESSED; break;
-                case VK_LEFT: G->keys[K_LEFT] = KS_JUST_PRESSED; break;
-                case VK_RIGHT: G->keys[K_RIGHT] = KS_JUST_PRESSED; break;
-
-                case 'Q': G->keys[K_Q] = KS_JUST_PRESSED; break;
-                case 'W': G->keys[K_W] = KS_JUST_PRESSED; break;
-                case 'F': G->keys[K_F] = KS_JUST_PRESSED; break;
-                case 'P': G->keys[K_P] = KS_JUST_PRESSED; break;
-                case 'G': G->keys[K_G] = KS_JUST_PRESSED; break;
-                case 'J': G->keys[K_J] = KS_JUST_PRESSED; break;
-                case 'L': G->keys[K_L] = KS_JUST_PRESSED; break;
-                case 'U': G->keys[K_U] = KS_JUST_PRESSED; break;
-                case 'Y': G->keys[K_Y] = KS_JUST_PRESSED; break;
-                case 'A': G->keys[K_A] = KS_JUST_PRESSED; break;
-                case 'R': G->keys[K_R] = KS_JUST_PRESSED; break;
-                case 'S': G->keys[K_S] = KS_JUST_PRESSED; break;
-                case 'T': G->keys[K_T] = KS_JUST_PRESSED; break;
-                case 'D': G->keys[K_D] = KS_JUST_PRESSED; break;
-                case 'H': G->keys[K_H] = KS_JUST_PRESSED; break;
-                case 'N': G->keys[K_N] = KS_JUST_PRESSED; break;
-                case 'E': G->keys[K_E] = KS_JUST_PRESSED; break;
-                case 'I': G->keys[K_I] = KS_JUST_PRESSED; break;
-                case 'O': G->keys[K_O] = KS_JUST_PRESSED; break;
-                case 'Z': G->keys[K_Z] = KS_JUST_PRESSED; break;
-                case 'X': G->keys[K_X] = KS_JUST_PRESSED; break;
-                case 'C': G->keys[K_C] = KS_JUST_PRESSED; break;
-                case 'V': G->keys[K_V] = KS_JUST_PRESSED; break;
-                case 'B': G->keys[K_B] = KS_JUST_PRESSED; break;
-                case 'K': G->keys[K_K] = KS_JUST_PRESSED; break;
-                case 'M': G->keys[K_M] = KS_JUST_PRESSED; break;
-
-                default: break;
-                }
-                break;
-
-            case WM_KEYUP:
-                switch (G->msg.wParam) {
-                case VK_CONTROL: G->keys[K_CONTROL] = KS_JUST_RELEASED; break;
-                case VK_SHIFT: G->keys[K_SHIFT] = KS_JUST_RELEASED; break;
-
-                case VK_UP: G->keys[K_UP] = KS_JUST_RELEASED; break;
-                case VK_DOWN: G->keys[K_DOWN] = KS_JUST_RELEASED; break;
-                case VK_LEFT: G->keys[K_LEFT] = KS_JUST_RELEASED; break;
-                case VK_RIGHT: G->keys[K_RIGHT] = KS_JUST_RELEASED; break;
-
-                case VK_F1: G->keys[K_F1] = KS_JUST_RELEASED; break;
-                case VK_F2: G->keys[K_F2] = KS_JUST_RELEASED; break;
-                case VK_F3: G->keys[K_F3] = KS_JUST_RELEASED; break;
-                case VK_F4: G->keys[K_F4] = KS_JUST_RELEASED; break;
-                case VK_F5: G->keys[K_F5] = KS_JUST_RELEASED; break;
-                case VK_F6: G->keys[K_F6] = KS_JUST_RELEASED; break;
-                case VK_F7: G->keys[K_F7] = KS_JUST_RELEASED; break;
-                case VK_F8: G->keys[K_F8] = KS_JUST_RELEASED; break;
-                case VK_F9: G->keys[K_F9] = KS_JUST_RELEASED; break;
-                case VK_F10: G->keys[K_F10] = KS_JUST_RELEASED; break;
-                case VK_F11: G->keys[K_F11] = KS_JUST_RELEASED; break;
-                case VK_F12: G->keys[K_F12] = KS_JUST_RELEASED; break;
-
-                case 'Q': G->keys[K_Q] = KS_JUST_RELEASED; break;
-                case 'W': G->keys[K_W] = KS_JUST_RELEASED; break;
-                case 'F': G->keys[K_F] = KS_JUST_RELEASED; break;
-                case 'P': G->keys[K_P] = KS_JUST_RELEASED; break;
-                case 'G': G->keys[K_G] = KS_JUST_RELEASED; break;
-                case 'J': G->keys[K_J] = KS_JUST_RELEASED; break;
-                case 'L': G->keys[K_L] = KS_JUST_RELEASED; break;
-                case 'U': G->keys[K_U] = KS_JUST_RELEASED; break;
-                case 'Y': G->keys[K_Y] = KS_JUST_RELEASED; break;
-                case 'A': G->keys[K_A] = KS_JUST_RELEASED; break;
-                case 'R': G->keys[K_R] = KS_JUST_RELEASED; break;
-                case 'S': G->keys[K_S] = KS_JUST_RELEASED; break;
-                case 'T': G->keys[K_T] = KS_JUST_RELEASED; break;
-                case 'D': G->keys[K_D] = KS_JUST_RELEASED; break;
-                case 'H': G->keys[K_H] = KS_JUST_RELEASED; break;
-                case 'N': G->keys[K_N] = KS_JUST_RELEASED; break;
-                case 'E': G->keys[K_E] = KS_JUST_RELEASED; break;
-                case 'I': G->keys[K_I] = KS_JUST_RELEASED; break;
-                case 'O': G->keys[K_O] = KS_JUST_RELEASED; break;
-                case 'Z': G->keys[K_Z] = KS_JUST_RELEASED; break;
-                case 'X': G->keys[K_X] = KS_JUST_RELEASED; break;
-                case 'C': G->keys[K_C] = KS_JUST_RELEASED; break;
-                case 'V': G->keys[K_V] = KS_JUST_RELEASED; break;
-                case 'B': G->keys[K_B] = KS_JUST_RELEASED; break;
-                case 'K': G->keys[K_K] = KS_JUST_RELEASED; break;
-                case 'M': G->keys[K_M] = KS_JUST_RELEASED; break;
-
-                default: break;
-                }
-                break;
-
-            case WM_MOUSEMOVE:
-                G->mouse_pos = (v2){
-                    .x = Q8(G->msg.lParam & 0xFFFF),
-                    .y = Q8((G->msg.lParam >> 16) & 0xFFFF),
-                };
-                break;
-
-            default: break;
+            for (i32 i = 0; i < K_COUNT; i++) {
+                if (G->keys[i] == KS_JUST_RELEASED) G->keys[i] = KS_RELEASED;
+                if (G->keys[i] == KS_JUST_PRESSED) G->keys[i] = KS_PRESSED;
             }
 
-            TranslateMessage(&G->msg);
-            DispatchMessage(&G->msg);
+            while (PeekMessage(&G->msg, NULL, 0, 0, PM_REMOVE)) {
+                switch (G->msg.message) {
+                case WM_QUIT: G->shutdown = true; break;
+
+                case WM_LBUTTONDOWN: G->keys[K_MOUSE_LEFT] = KS_JUST_PRESSED; break;
+                case WM_LBUTTONUP: G->keys[K_MOUSE_LEFT] = KS_JUST_RELEASED; break;
+                case WM_MBUTTONDOWN: G->keys[K_MOUSE_MID] = KS_JUST_PRESSED; break;
+                case WM_MBUTTONUP: G->keys[K_MOUSE_MID] = KS_JUST_RELEASED; break;
+                case WM_RBUTTONDOWN: G->keys[K_MOUSE_RIGHT] = KS_JUST_PRESSED; break;
+                case WM_RBUTTONUP: G->keys[K_MOUSE_RIGHT] = KS_JUST_RELEASED; break;
+
+                case WM_KEYDOWN:
+                    switch (G->msg.wParam) {
+                    case VK_ESCAPE: break;
+                    case VK_CONTROL: G->keys[K_CONTROL] = KS_JUST_PRESSED; break;
+                    case VK_SHIFT: G->keys[K_SHIFT] = KS_JUST_PRESSED; break;
+
+                    case VK_F1: G->keys[K_F1] = KS_JUST_PRESSED; break;
+                    case VK_F2: G->keys[K_F2] = KS_JUST_PRESSED; break;
+                    case VK_F3: G->keys[K_F3] = KS_JUST_PRESSED; break;
+                    case VK_F4: G->keys[K_F4] = KS_JUST_PRESSED; break;
+                    case VK_F5: G->keys[K_F5] = KS_JUST_PRESSED; break;
+                    case VK_F6: G->keys[K_F6] = KS_JUST_PRESSED; break;
+                    case VK_F7: G->keys[K_F7] = KS_JUST_PRESSED; break;
+                    case VK_F8: G->keys[K_F8] = KS_JUST_PRESSED; break;
+                    case VK_F9: G->keys[K_F9] = KS_JUST_PRESSED; break;
+                    case VK_F10: G->keys[K_F10] = KS_JUST_PRESSED; break;
+                    case VK_F11: G->keys[K_F11] = KS_JUST_PRESSED; break;
+                    case VK_F12: G->keys[K_F12] = KS_JUST_PRESSED; break;
+
+                    case VK_UP: G->keys[K_UP] = KS_JUST_PRESSED; break;
+                    case VK_DOWN: G->keys[K_DOWN] = KS_JUST_PRESSED; break;
+                    case VK_LEFT: G->keys[K_LEFT] = KS_JUST_PRESSED; break;
+                    case VK_RIGHT: G->keys[K_RIGHT] = KS_JUST_PRESSED; break;
+
+                    case 'Q': G->keys[K_Q] = KS_JUST_PRESSED; break;
+                    case 'W': G->keys[K_W] = KS_JUST_PRESSED; break;
+                    case 'F': G->keys[K_F] = KS_JUST_PRESSED; break;
+                    case 'P': G->keys[K_P] = KS_JUST_PRESSED; break;
+                    case 'G': G->keys[K_G] = KS_JUST_PRESSED; break;
+                    case 'J': G->keys[K_J] = KS_JUST_PRESSED; break;
+                    case 'L': G->keys[K_L] = KS_JUST_PRESSED; break;
+                    case 'U': G->keys[K_U] = KS_JUST_PRESSED; break;
+                    case 'Y': G->keys[K_Y] = KS_JUST_PRESSED; break;
+                    case 'A': G->keys[K_A] = KS_JUST_PRESSED; break;
+                    case 'R': G->keys[K_R] = KS_JUST_PRESSED; break;
+                    case 'S': G->keys[K_S] = KS_JUST_PRESSED; break;
+                    case 'T': G->keys[K_T] = KS_JUST_PRESSED; break;
+                    case 'D': G->keys[K_D] = KS_JUST_PRESSED; break;
+                    case 'H': G->keys[K_H] = KS_JUST_PRESSED; break;
+                    case 'N': G->keys[K_N] = KS_JUST_PRESSED; break;
+                    case 'E': G->keys[K_E] = KS_JUST_PRESSED; break;
+                    case 'I': G->keys[K_I] = KS_JUST_PRESSED; break;
+                    case 'O': G->keys[K_O] = KS_JUST_PRESSED; break;
+                    case 'Z': G->keys[K_Z] = KS_JUST_PRESSED; break;
+                    case 'X': G->keys[K_X] = KS_JUST_PRESSED; break;
+                    case 'C': G->keys[K_C] = KS_JUST_PRESSED; break;
+                    case 'V': G->keys[K_V] = KS_JUST_PRESSED; break;
+                    case 'B': G->keys[K_B] = KS_JUST_PRESSED; break;
+                    case 'K': G->keys[K_K] = KS_JUST_PRESSED; break;
+                    case 'M': G->keys[K_M] = KS_JUST_PRESSED; break;
+
+                    default: break;
+                    }
+                    break;
+
+                case WM_KEYUP:
+                    switch (G->msg.wParam) {
+                    case VK_CONTROL: G->keys[K_CONTROL] = KS_JUST_RELEASED; break;
+                    case VK_SHIFT: G->keys[K_SHIFT] = KS_JUST_RELEASED; break;
+
+                    case VK_UP: G->keys[K_UP] = KS_JUST_RELEASED; break;
+                    case VK_DOWN: G->keys[K_DOWN] = KS_JUST_RELEASED; break;
+                    case VK_LEFT: G->keys[K_LEFT] = KS_JUST_RELEASED; break;
+                    case VK_RIGHT: G->keys[K_RIGHT] = KS_JUST_RELEASED; break;
+
+                    case VK_F1: G->keys[K_F1] = KS_JUST_RELEASED; break;
+                    case VK_F2: G->keys[K_F2] = KS_JUST_RELEASED; break;
+                    case VK_F3: G->keys[K_F3] = KS_JUST_RELEASED; break;
+                    case VK_F4: G->keys[K_F4] = KS_JUST_RELEASED; break;
+                    case VK_F5: G->keys[K_F5] = KS_JUST_RELEASED; break;
+                    case VK_F6: G->keys[K_F6] = KS_JUST_RELEASED; break;
+                    case VK_F7: G->keys[K_F7] = KS_JUST_RELEASED; break;
+                    case VK_F8: G->keys[K_F8] = KS_JUST_RELEASED; break;
+                    case VK_F9: G->keys[K_F9] = KS_JUST_RELEASED; break;
+                    case VK_F10: G->keys[K_F10] = KS_JUST_RELEASED; break;
+                    case VK_F11: G->keys[K_F11] = KS_JUST_RELEASED; break;
+                    case VK_F12: G->keys[K_F12] = KS_JUST_RELEASED; break;
+
+                    case 'Q': G->keys[K_Q] = KS_JUST_RELEASED; break;
+                    case 'W': G->keys[K_W] = KS_JUST_RELEASED; break;
+                    case 'F': G->keys[K_F] = KS_JUST_RELEASED; break;
+                    case 'P': G->keys[K_P] = KS_JUST_RELEASED; break;
+                    case 'G': G->keys[K_G] = KS_JUST_RELEASED; break;
+                    case 'J': G->keys[K_J] = KS_JUST_RELEASED; break;
+                    case 'L': G->keys[K_L] = KS_JUST_RELEASED; break;
+                    case 'U': G->keys[K_U] = KS_JUST_RELEASED; break;
+                    case 'Y': G->keys[K_Y] = KS_JUST_RELEASED; break;
+                    case 'A': G->keys[K_A] = KS_JUST_RELEASED; break;
+                    case 'R': G->keys[K_R] = KS_JUST_RELEASED; break;
+                    case 'S': G->keys[K_S] = KS_JUST_RELEASED; break;
+                    case 'T': G->keys[K_T] = KS_JUST_RELEASED; break;
+                    case 'D': G->keys[K_D] = KS_JUST_RELEASED; break;
+                    case 'H': G->keys[K_H] = KS_JUST_RELEASED; break;
+                    case 'N': G->keys[K_N] = KS_JUST_RELEASED; break;
+                    case 'E': G->keys[K_E] = KS_JUST_RELEASED; break;
+                    case 'I': G->keys[K_I] = KS_JUST_RELEASED; break;
+                    case 'O': G->keys[K_O] = KS_JUST_RELEASED; break;
+                    case 'Z': G->keys[K_Z] = KS_JUST_RELEASED; break;
+                    case 'X': G->keys[K_X] = KS_JUST_RELEASED; break;
+                    case 'C': G->keys[K_C] = KS_JUST_RELEASED; break;
+                    case 'V': G->keys[K_V] = KS_JUST_RELEASED; break;
+                    case 'B': G->keys[K_B] = KS_JUST_RELEASED; break;
+                    case 'K': G->keys[K_K] = KS_JUST_RELEASED; break;
+                    case 'M': G->keys[K_M] = KS_JUST_RELEASED; break;
+
+                    default: break;
+                    }
+                    break;
+
+                case WM_MOUSEMOVE:
+                    G->mouse_pos = (v2){
+                        .x = Q8(G->msg.lParam & 0xFFFF),
+                        .y = Q8((G->msg.lParam >> 16) & 0xFFFF),
+                    };
+                    break;
+
+                default: break;
+                }
+
+                TranslateMessage(&G->msg);
+                DispatchMessage(&G->msg);
+            }
+
+            if (GetAction(A_FULLSCREEN) == KS_JUST_PRESSED) FullscreenWindow(G->hwnd);
+            if (GetAction(A_QUIT) == KS_JUST_PRESSED) DestroyWindow(G->hwnd);
+            if (GetAction(A_RESET) == KS_JUST_PRESSED) G->game.init();
         }
 
-        if (GetAction(A_FULLSCREEN) == KS_JUST_PRESSED) FullscreenWindow(G->hwnd);
-        if (GetAction(A_QUIT) == KS_JUST_PRESSED) DestroyWindow(G->hwnd);
-        if (GetAction(A_RESET) == KS_JUST_PRESSED) G->game.init();
+        G->game.update((q8)(G->dt * 256.0f));
 
-        LOOP_BLOCK("Update");
-        G->game.update((q8)(dt * 256.0f));
-        LOOP_BLOCK_END();
-
-        {
-            LOOP_BLOCK("Render");
-            LOOP_BLOCK_BYTES(G->draw_count * sizeof(DrawCmd));
-
+        if (th->id == 0) {
             if (G->draw_count == G->draw_size) WARN("Maximum draw_size reached");
 
             HDC  hdc = GetDC(G->hwnd);
@@ -341,7 +271,6 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
                 switch (next.t) {
                 case DCT_MESH_WIREFRAME: {
-                    LOOP_BLOCK_BYTES((sizeof(v2i) + sizeof(v3)) * next.count);
                     v2i *screen_verts = (v2i *)alloc_temp(sizeof(v2i) * next.count);
                     for (i32 v = 0; v < next.count; v++) {
                         v3 n            = next.vertices[v];
@@ -355,7 +284,6 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                     break;
                 }
                 case DCT_MESH_SOLID: {
-                    LOOP_BLOCK_BYTES((sizeof(v2i) + sizeof(v3)) * next.count);
                     v2i *screen_verts  = (v2i *)alloc_temp(sizeof(v2i) * next.count);
                     q8  *transformed_z = (q8 *)alloc_temp(sizeof(q8) * next.count);
                     for (i32 v = 0; v < next.count; v++) {
@@ -390,7 +318,6 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                     break;
                 }
                 case DCT_MODEL: {
-                    LOOP_BLOCK_BYTES(next.count * (sizeof(Face) + sizeof(v3)));
                     v2i *screen_verts  = (v2i *)alloc_temp(sizeof(v2i) * next.count);
                     q8  *transformed_z = (q8 *)alloc_temp(sizeof(q8) * next.count);
                     for (i32 v = 0; v < next.count; v++) {
@@ -434,9 +361,6 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                         .w = q8_to_i32(next.r.w),
                         .h = q8_to_i32(next.r.h),
                     };
-                    // NOTE(violeta): Here we're profiling output bytes, but in the
-                    // others we're counting input data?
-                    LOOP_BLOCK_BYTES(next.r.w * next.r.h * sizeof(u32));
                     for (i32 y_coord = next.r.y; y_coord < next.r.y + next.r.h; y_coord++) {
                         for (i32 x_coord = next.r.x; x_coord < next.r.x + next.r.w; x_coord++) {
                             if (x_coord >= 0 && x_coord < G->screen_size.w && y_coord >= 0 &&
@@ -511,28 +435,101 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
             ReleaseDC(G->hwnd, hdc);
             G->draw_count = 0;
-            LOOP_BLOCK_END();
         }
 
-        {
-            LOOP_BLOCK("Leftover");
-            next_frame += target_dt;
+        if (th->id == 0) {
+            G->next_frame += G->target_dt;
 
-            f64 remaining = next_frame - now_seconds();
+            f64 remaining = G->next_frame - now_seconds();
             if (remaining > 0.0) {
                 DWORD sleep_ms = (DWORD)(remaining * 1000.0);
                 if (sleep_ms > 0) Sleep(sleep_ms);
             }
 
             arena_reset(&ctx()->temp, 0);
-            dt = now_seconds() - frame_start;
-            LOOP_BLOCK_END();
+            G->dt = now_seconds() - frame_start;
         }
+    }
+}
 
-        LOOP_END();
+void engine_init(HINSTANCE hInstance) {
+    // SetProcessDPIAware();
+    {
+        Arena perm = arena_new(MB(32), NULL);
+
+        G  = (EngineData *)alloc(sizeof(EngineData), &perm);
+        *G = (EngineData){
+            .ctx =
+                {
+                    .perm = perm,
+                },
+            .prev_placement = {sizeof(WINDOWPLACEMENT)},
+            .screen_size    = {.w = 640, .h = 360},
+            .draw_size      = 20000,
+            .metrics        = metrics_init(),
+            .system_info    = systeminfo_init(),
+            .profiler       = profiler_new("Handmade Renderer"),
+        };
+        ctx()->temp = arena_new(MB(8), &ctx()->perm);
+    }
+
+    G->draw_queue = ALLOC_ARRAY(DrawCmd, G->draw_size);
+
+    QueryPerformanceFrequency(&G->freq);
+    G->target_dt  = 1.0f / 60.0f;
+    G->dt         = G->target_dt;
+    G->next_frame = now_seconds();
+
+    G->game = load_dll();
+    if (!G->game.tcc) FATAL("Couldn't initialize TCC");
+    G->game.info->keybinds[A_FULLSCREEN][0] = (KeyCombo){K_F11};
+    G->game.info->keybinds[A_QUIT][0]       = (KeyCombo){K_F4 | M_SHIFT};
+    G->game.info->keybinds[A_RESET][0]      = (KeyCombo){K_F5};
+
+    G->game_memory = alloc_perm(G->game.gamedata_size());
+    G->screen_buf  = ALLOC_ARRAY(u32, G->screen_size.w * G->screen_size.h);
+
+    WNDCLASS wc = {
+        .hInstance     = hInstance,
+        .lpszClassName = G->game.info->name,
+        .lpfnWndProc   = (WNDPROC)WndProc,
+        .style         = CS_DBLCLKS | CS_VREDRAW | CS_HREDRAW,
+        .hbrBackground = NULL, // (HBRUSH)GetStockObject(BLACK_BRUSH),
+        .hIcon         = LoadIcon(NULL, IDI_APPLICATION),
+        .hCursor       = LoadCursor(NULL, IDC_ARROW),
+    };
+
+    if (!RegisterClass(&wc)) FATAL("Couldn't initialize window");
+
+    DWORD style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+    RECT  wr    = {0, 0, G->screen_size.w, G->screen_size.h};
+    AdjustWindowRect(&wr, style, false);
+
+    cstr window_name =
+        string_format(&G->ctx.perm, "%s %s", G->game.info->name, G->game.info->version);
+    G->hwnd = CreateWindow(G->game.info->name, window_name, style, CW_USEDEFAULT, CW_USEDEFAULT,
+                           wr.right - wr.left, wr.bottom - wr.top, 0, 0, hInstance, 0);
+    if (!G->hwnd) FATAL("Couldn't initialize window");
+    BLOCK_END();
+}
+
+i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, i32 nCmdShow) {
+    engine_init(hInstance);
+
+    if (G->game.init) G->game.init();
+
+    for (i32 i = 1; i < 2; i++) {
+        G->thread_ctx[i] = thread_new(i, main_update, "", &G->thread_ctx[i]);
+    }
+
+    main_update(&G->thread_ctx[0]);
+
+    for (i32 i = 1; i < 2; i++) {
+        thread_wait(G->thread_ctx[i]);
     }
 
     if (G->game.quit) G->game.quit();
+
     profiler_end();
     return G->msg.wParam;
 }

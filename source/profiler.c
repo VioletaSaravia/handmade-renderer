@@ -66,6 +66,7 @@ static f64 to_gb(f64 bytes) { return bytes / 1024.0 / 1024.0 / 1024.0; }
 
 void profiler_end() {
     Profiler *p = &EG()->profiler;
+    if (!p) return;
     if (p->start == 0) return;
     if (p->ended) return;
 

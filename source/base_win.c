@@ -216,7 +216,34 @@ internal inline void _mm_pause() {
 #endif
 }
 
-#define THREAD_COUNT 8
+v2i thread_range(i32 total, i32 thread_id) {
+    v2i result = {0};
+    if (thread_id == 0) {
+        result.from = 0;
+        result.to   = total;
+        return result;
+    }
+
+    i32 num_threads = THREAD_COUNT;
+
+    if (thread_id > num_threads) {
+        result.from = 0;
+        result.to   = 0;
+        return result;
+    }
+
+    if (total < num_threads) {
+        result.from = thread_id - 1;
+        result.to   = thread_id;
+        return result;
+    }
+
+    i32 per_thread = total / num_threads;
+    result.from    = (thread_id - 1) * per_thread;
+    result.to      = (thread_id == num_threads) ? total : result.from + per_thread;
+    return result;
+}
+
 void thread_barrier() {
     persist volatile i64 barrier_count      = 0;
     persist volatile i64 barrier_generation = 0;
@@ -284,3 +311,34 @@ string file_read(char *path, Arena *a) {
     CloseHandle(file);
     return (string){.text = buffer, .len = file_size};
 }
+
+uintptr_t _beginthreadex(
+   void *security,
+   unsigned stack_size,
+   unsigned ( __stdcall *start_address )( void * ),
+   void *arglist,
+   unsigned initflag,
+   unsigned *thrdaddr
+);
+
+ThreadCtx thread_new(i32 id, ThreadFunction fn, cstr name, void *userdata) {
+    ThreadCtx result = {.id = id};
+    result.thread    = (Thread)_beginthreadex(NULL, 0, fn, userdata, 0, &result.os_id);
+
+    return result;
+}
+
+i32 thread_wait(ThreadCtx thread) {
+    if (!thread.thread) return;
+
+    WaitForSingleObject(thread.thread, INFINITE);
+
+    i32 exit_code = 0;
+    GetExitCodeThread(thread.thread, &exit_code);
+
+    CloseHandle(thread.thread);
+
+    return exit_code;
+}
+i32  thread_id(ThreadCtx thread) { return thread.os_id; }
+cstr thread_name(ThreadCtx thread) { return NULL; }

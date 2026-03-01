@@ -59,11 +59,11 @@ typedef struct {
     };
 } DrawCmd;
 
-typedef struct {
+struct Info {
     cstr     name;
     cstr     version;
     KeyCombo keybinds[A_COUNT][2];
-} Info;
+};
 
 struct Metrics {
     bool  initialized;
@@ -109,11 +109,15 @@ struct SystemInfo {
 };
 
 struct EngineData {
-    Context ctx;
-    GameDLL game;
-    u8     *game_memory;
+    Context   ctx;
+    ThreadCtx thread_ctx[THREAD_COUNT];
+    GameDLL   game;
+    u8       *game_memory;
 
     bool            shutdown;
+    f32             dt;
+    f32             target_dt;
+    f64             next_frame;
     MSG             msg;
     LARGE_INTEGER   freq;
     WINDOWPLACEMENT prev_placement;

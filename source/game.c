@@ -7,15 +7,12 @@ export Info game = {
     .version = "0.2.1",
     .keybinds =
         {
-            [A_FULLSCREEN] = {K_F11},
-            [A_QUIT]       = {K_F4 | M_SHIFT},
-            [A_RESET]      = {K_F5},
-            [A_UP]         = {K_UP, K_W},
-            [A_DOWN]       = {K_DOWN, K_R},
-            [A_LEFT]       = {K_LEFT, K_A},
-            [A_RIGHT]      = {K_RIGHT, K_S},
-            [A_ACCEPT]     = {K_ENTER},
-            [A_CANCEL]     = {K_ESCAPE},
+            [A_UP]     = {K_UP, K_W},
+            [A_DOWN]   = {K_DOWN, K_R},
+            [A_LEFT]   = {K_LEFT, K_A},
+            [A_RIGHT]  = {K_RIGHT, K_S},
+            [A_ACCEPT] = {K_ENTER},
+            [A_CANCEL] = {K_ESCAPE},
         },
 };
 
@@ -123,15 +120,17 @@ export void update(q8 dt) {
             data->obj_transform[i].rot.y -= Q8_TAU;
         while (data->obj_transform[i].rot.y < 0)
             data->obj_transform[i].rot.y += Q8_TAU;
+        data->obj_transform[i].rot.x += q8_mul(Q8_PI, dt);
+        while (data->obj_transform[i].rot.x > Q8_TAU)
+            data->obj_transform[i].rot.x -= Q8_TAU;
+        while (data->obj_transform[i].rot.x < 0)
+            data->obj_transform[i].rot.x += Q8_TAU;
 
         draw_model(data->obj_mesh, data->obj_tex, data->obj_transform[i]);
     }
 
-    draw_text(string_format(&ctx()->temp, "Total memory used: %d KB", ctx()->perm.used / 1024), 10,
-              10, data->text_light);
-    draw_text(string_format(&ctx()->temp, "Game memory used: %d KB",
-                            (ctx()->perm.used - data->level_mark + sizeof(Data)) / 1024),
-              10, 30, data->text_light);
+    draw_text(string_format(&ctx()->temp, "Memory used: %d KB", ctx()->perm.used / 1024), 10, 10,
+              data->text_light);
 }
 
 export void quit() {}
