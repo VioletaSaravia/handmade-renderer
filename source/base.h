@@ -727,3 +727,5 @@ typedef struct ThreadCtx {
 } ThreadCtx;
 
 typedef u32 (*ThreadFunction)(void *);
+
+#define MAIN 0
