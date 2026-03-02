@@ -1,5 +1,3 @@
-#define THREAD_COUNT 1
-
 #define ENGINE_IMPL
 #include "base.c"
 #include "engine.c"
