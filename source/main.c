@@ -1,4 +1,4 @@
-#define THREAD_COUNT 8
+#define THREAD_COUNT 1
 
 #define ENGINE_IMPL
 #include "base.c"
@@ -528,7 +528,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
     if (G->game.init) G->game.init();
 
-    for (u32 i = 1; i < 2; i++) {
+    for (u32 i = 1; i < THREAD_COUNT; i++) {
         ThreadCtx *ctx = &EG()->thread_ctx[i];
         ctx->id        = i;
         ctx->thread    = (Thread)_beginthreadex(NULL, 0, main_update, (void *)ctx, 0, &ctx->os_id);
@@ -537,7 +537,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
     main_update(&G->thread_ctx[0]);
 
-    for (u32 i = 1; i < 2; i++) {
+    for (u32 i = 1; i < THREAD_COUNT; i++) {
         ThreadCtx *ctx = &EG()->thread_ctx[i];
         if (!ctx->thread) continue;
 
