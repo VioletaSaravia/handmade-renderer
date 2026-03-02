@@ -100,13 +100,16 @@ LRESULT CALLBACK WndProc(HWND hwnd, u32 message, WPARAM wParam, LPARAM lParam) {
 
 void main_update(void *thread_ctx) {
     ThreadCtx *th = (ThreadCtx *)thread_ctx;
+    if (th->id == MAIN) LOOP_PROFILER();
+
     while (!G->shutdown) {
+        if (th->id == MAIN) LOOP_BEGIN();
         f64 frame_start = now_seconds();
-        
+
         // Input
-        if (th->id == 0) {
+        if (th->id == MAIN) {
             hot_reload();
-            
+
             for (i32 i = 0; i < K_COUNT; i++) {
                 if (G->keys[i] == KS_JUST_RELEASED) G->keys[i] = KS_RELEASED;
                 if (G->keys[i] == KS_JUST_PRESSED) G->keys[i] = KS_PRESSED;
@@ -252,11 +255,14 @@ void main_update(void *thread_ctx) {
         }
 
         thread_barrier();
+        if (th->id == MAIN) LOOP_BLOCK("Game Update");
         G->game.update((q8)(G->dt * 256.0f), th->id);
+        if (th->id == MAIN) LOOP_BLOCK_END();
         thread_barrier();
 
         // Rendering
-        if (th->id == 0) {
+        if (th->id == MAIN) {
+            LOOP_BLOCK("Rendering");
             if (G->draw_count == G->draw_size) WARN("Maximum draw_size reached");
 
             HDC  hdc = GetDC(G->hwnd);
@@ -271,7 +277,7 @@ void main_update(void *thread_ctx) {
             HBITMAP old_bmp = SelectObject(mem_dc, mem_bmp);
 
             qsort(G->draw_queue, G->draw_count, sizeof(DrawCmd), draw_cmd_cmp);
-            
+
             for (i32 i = 0; i < G->draw_count; i++) {
                 DrawCmd next = G->draw_queue[i];
 
@@ -441,10 +447,12 @@ void main_update(void *thread_ctx) {
 
             ReleaseDC(G->hwnd, hdc);
             G->draw_count = 0;
+            LOOP_BLOCK_END();
         }
 
         // Timing
-        if (th->id == 0) {
+        if (th->id == MAIN) {
+            LOOP_BLOCK("Leftover");
             G->next_frame += G->target_dt;
 
             f64 remaining = G->next_frame - now_seconds();
@@ -455,9 +463,11 @@ void main_update(void *thread_ctx) {
 
             arena_reset(&ctx()->temp, 0);
             G->dt = now_seconds() - frame_start;
+            LOOP_BLOCK_END();
         }
 
         thread_barrier();
+        if (th->id == MAIN) LOOP_END();
     }
 }
 
@@ -531,10 +541,12 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
         ThreadCtx *ctx = &EG()->thread_ctx[i];
         ctx->id        = i;
         ctx->thread    = (Thread)_beginthreadex(NULL, 0, main_update, (void *)ctx, 0, &ctx->os_id);
-        INFO("Thread %u started", i);
+        INFO("Thread %02u started", i);
     }
 
+    INFO("Main Thread started");
     main_update(&G->thread_ctx[0]);
+    INFO("Main Thread ended");
 
     for (u32 i = 1; i < THREAD_COUNT; i++) {
         ThreadCtx *ctx = &EG()->thread_ctx[i];
@@ -546,7 +558,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
         GetExitCodeThread(ctx->thread, (LPDWORD)&exit_code);
 
         CloseHandle(ctx->thread);
-        INFO("Thread %u closed", i);
+        INFO("Thread %02u ended", i);
     }
 
     if (G->game.quit) G->game.quit();
