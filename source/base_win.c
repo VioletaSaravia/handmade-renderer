@@ -249,10 +249,10 @@ void thread_barrier() {
     persist volatile i64 barrier_generation = 0;
     persist const i32    barrier_total      = THREAD_COUNT;
 
-    i64 gen       = read_acquire(&barrier_generation);
-    i64 new_count = InterlockedIncrement((LONG *)&barrier_count);
+    i64 gen = read_acquire(&barrier_generation);
+    InterlockedIncrement((LONG *)&barrier_count);
 
-    if (new_count == barrier_total) {
+    if (read_acquire(&barrier_count) == barrier_total) {
         InterlockedExchange((LONG *)&barrier_count, 0);
         InterlockedIncrement((LONG *)&barrier_generation);
     } else {

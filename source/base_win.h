@@ -75,7 +75,7 @@ typedef struct {
 
     void (*init)();
     Info *info;
-    void (*update)(q8 dt);
+    void (*update)(q8 dt, i32 tid);
     void (*quit)();
     i32 (*gamedata_size)();
     FILETIME last_write;

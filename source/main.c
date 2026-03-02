@@ -102,11 +102,11 @@ void main_update(void *thread_ctx) {
     ThreadCtx *th = (ThreadCtx *)thread_ctx;
     while (!G->shutdown) {
         f64 frame_start = now_seconds();
-
+        
         // Input
         if (th->id == 0) {
             hot_reload();
-
+            
             for (i32 i = 0; i < K_COUNT; i++) {
                 if (G->keys[i] == KS_JUST_RELEASED) G->keys[i] = KS_RELEASED;
                 if (G->keys[i] == KS_JUST_PRESSED) G->keys[i] = KS_PRESSED;
@@ -252,7 +252,7 @@ void main_update(void *thread_ctx) {
         }
 
         thread_barrier();
-        G->game.update((q8)(G->dt * 256.0f));
+        G->game.update((q8)(G->dt * 256.0f), th->id);
         thread_barrier();
 
         // Rendering
@@ -271,6 +271,7 @@ void main_update(void *thread_ctx) {
             HBITMAP old_bmp = SelectObject(mem_dc, mem_bmp);
 
             qsort(G->draw_queue, G->draw_count, sizeof(DrawCmd), draw_cmd_cmp);
+            
             for (i32 i = 0; i < G->draw_count; i++) {
                 DrawCmd next = G->draw_queue[i];
 

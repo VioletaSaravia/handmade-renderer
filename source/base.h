@@ -2,7 +2,7 @@
 #include <stdint.h>
 
 #ifndef THREAD_COUNT
-#define THREAD_COUNT 1
+#define THREAD_COUNT 4
 #endif
 
 #define export __declspec(dllexport)
