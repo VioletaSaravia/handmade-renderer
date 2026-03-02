@@ -42,9 +42,9 @@ struct Data {
     // Entities
     EntityID *entities;
     i32       count, cap;
-    m3       *obj_transform;
-    Mesh      obj_mesh;
-    Texture  *obj_tex;
+    m3       *e_transform;
+    Mesh      e_mesh;
+    Texture  *e_tex;
 };
 
 export void init() {
@@ -58,8 +58,8 @@ export void init() {
         .entities   = ALLOC_ARRAY(EntityID, ENTITY_MAX),
         .count      = 0,
         .cap        = ENTITY_MAX,
-        .obj_mesh   = cube,
-        .obj_tex    = &default_texture,
+        .e_mesh   = cube,
+        .e_tex    = &default_texture,
         .fg         = rgb(110, 124, 205),
         .bg         = rgb(51, 45, 116),
         .text_light = rgb(230, 240, 250),
@@ -75,17 +75,17 @@ export void init() {
         .tilemap_size = (v2i){64, 64},
     };
 
-    data->obj_transform = ALLOC_ARRAY(m3, ENTITY_MAX);
+    data->e_transform = ALLOC_ARRAY(m3, ENTITY_MAX);
 
     for (i32 i = 0; i < ENTITY_MAX; i++) {
-        data->obj_transform[i]       = m3_id;
-        data->obj_transform[i].pos   = (v3){Q8((i % 5) - 2), 0, Q8((i / 5) - 2)};
-        data->obj_transform[i].scale = (v3){Q8(1) >> 1, Q8(1) >> 1, Q8(1) >> 1};
+        data->e_transform[i]       = m3_id;
+        data->e_transform[i].pos   = (v3){Q8((i % 5) - 2), 0, Q8((i / 5) - 2)};
+        data->e_transform[i].scale = (v3){Q8(1) >> 1, Q8(1) >> 1, Q8(1) >> 1};
     }
 
-    data->obj_transform[0]       = m3_id;
-    data->obj_transform[0].pos   = (v3){0, 0, Q8(1)};
-    data->obj_transform[0].scale = (v3){Q8(1) >> 1, Q8(1) >> 1, Q8(1) >> 1};
+    data->e_transform[0]       = m3_id;
+    data->e_transform[0].pos   = (v3){0, 0, Q8(1)};
+    data->e_transform[0].scale = (v3){Q8(1) >> 1, Q8(1) >> 1, Q8(1) >> 1};
 
     data->tilemap = ALLOC_ARRAY(u8, data->tilemap_size.y * data->tilemap_size.x);
 
@@ -115,18 +115,13 @@ export void update(q8 dt) {
     }
 
     for (i32 i = 0; i < ENTITY_MAX; i++) {
-        data->obj_transform[i].rot.y += q8_mul(Q8_PI, dt);
-        while (data->obj_transform[i].rot.y > Q8_TAU)
-            data->obj_transform[i].rot.y -= Q8_TAU;
-        while (data->obj_transform[i].rot.y < 0)
-            data->obj_transform[i].rot.y += Q8_TAU;
-        data->obj_transform[i].rot.x += q8_mul(Q8_PI, dt);
-        while (data->obj_transform[i].rot.x > Q8_TAU)
-            data->obj_transform[i].rot.x -= Q8_TAU;
-        while (data->obj_transform[i].rot.x < 0)
-            data->obj_transform[i].rot.x += Q8_TAU;
+        data->e_transform[i].rot.y += q8_mul(Q8_PI, dt);
+        while (data->e_transform[i].rot.y > Q8_TAU)
+            data->e_transform[i].rot.y -= Q8_TAU;
+        while (data->e_transform[i].rot.y < 0)
+            data->e_transform[i].rot.y += Q8_TAU;
 
-        draw_model(data->obj_mesh, data->obj_tex, data->obj_transform[i]);
+        draw_model(data->e_mesh, data->e_tex, data->e_transform[i]);
     }
 
     draw_text(string_format(&ctx()->temp, "Memory used: %d KB", ctx()->perm.used / 1024), 10, 10,
