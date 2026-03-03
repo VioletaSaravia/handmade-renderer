@@ -449,10 +449,10 @@ f32 strtof(cstr str, char **endptr) {
     if (endptr) *endptr = (char *)str;
     return sign * result;
 }
+
 i64 strtol(cstr, char **, i32);
 
 Mesh mesh_from_obj(Arena *a, cstr obj) {
-    // --- First pass: count vertices, texture coords, and faces ---
     i32  vert_count = 0, uv_count = 0, face_count = 0;
     cstr p = obj;
     while (*p) {
@@ -470,7 +470,6 @@ Mesh mesh_from_obj(Arena *a, cstr obj) {
         if (*p == '\n') p++;
     }
 
-    // --- Allocate mesh data ---
     Mesh result = {
         .verts       = (v3 *)alloc(sizeof(v3) * vert_count, a),
         .verts_count = vert_count,
@@ -478,11 +477,9 @@ Mesh mesh_from_obj(Arena *a, cstr obj) {
         .faces_count = face_count,
     };
 
-    // Temp storage for UVs (freed after parsing)
     handle temp_mark = arena_mark(&ctx()->temp);
     v2    *uvs       = uv_count > 0 ? ALLOC_TEMP_ARRAY(v2, uv_count) : 0;
 
-    // --- Second pass: parse data ---
     i32   vi  = 0;
     i32   uvi = 0;
     i32   fi  = 0;
@@ -529,7 +526,7 @@ Mesh mesh_from_obj(Arena *a, cstr obj) {
                         p++;
                         strtol(p, &end, 10);
                         p = end;
-                    } // skip normal index
+                    }
                 }
             }
 
@@ -620,7 +617,10 @@ void log(const char *fmt, ...);
 
 // Input
 
-typedef enum {
+// Physical key codes. 
+// TODO: Map to logical keys.
+// Max value must be under `2^MOD_BITS_USED` to fit in KeyCombo.
+typedef enum Key {
     K_NONE = 0,
     K_CONTROL,
     K_SHIFT,
@@ -688,9 +688,11 @@ typedef enum {
 
 typedef enum { M_CONTROL = 1 << 31, M_SHIFT = 1 << 30, M_ALT = 1 << 29, M_COUNT = 3 } ModKey;
 
-#define MOD_BYTES_USED (32 - M_COUNT)
+// Number of bits used for modifier keys.
+#define MOD_BITS_USED (32 - M_COUNT)
 
-// Key | ModKey
+// `Key | ModKey`
+// Upper `M_COUNT` bits are modifiers, lower ones are for keys.
 typedef int KeyCombo;
 
 typedef enum Action {

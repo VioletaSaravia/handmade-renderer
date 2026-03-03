@@ -268,7 +268,7 @@ KeyState GetAction(Action a) {
         KeyState state   = EG()->keys[binding & 0xFFFF];
         if (state == KS_RELEASED) continue;
 
-        i32 mods = binding >> MOD_BYTES_USED;
+        i32 mods = binding >> MOD_BITS_USED;
         for (i32 j = 0; j < M_COUNT; j++) {
             bool used = (mods & (1 << j)) != 0;
             if (!used) continue;
