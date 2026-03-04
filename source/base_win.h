@@ -19,11 +19,6 @@ typedef enum {
     DCT_COUNT
 } DrawCmdType;
 
-typedef struct Texture {
-    col32 *data;
-    v2i    size;
-} Texture;
-
 typedef struct DrawCmd {
     DrawCmdType t;
 

@@ -180,24 +180,31 @@ typedef union {
     };
 } v2i;
 
-v2i v2i_from_v2(v2 v) {
+inline v2i v2i_from_v2(v2 v) {
     return (v2i){
         .x = q8_to_i32(v.x),
         .y = q8_to_i32(v.y),
     };
 }
 
-i32 v2i_cross(v2i a, v2i b) { return a.y * b.x - a.x * b.y; }
+inline v2i v2i_add(v2i a, v2i b) {
+    return (v2i){
+        .x = a.x + b.x,
+        .y = a.y + b.y,
+    };
+}
 
-typedef struct {
-    u32 *data;
-    v2i  size;
+inline i32 v2i_cross(v2i a, v2i b) { return a.y * b.x - a.x * b.y; }
+
+typedef struct Texture {
+    col32 *data;
+    v2i    size;
 } Texture;
 
 global col32 default_texture_data[64][64];
 
 global Texture default_texture = {
-    .data = (u32 *)default_texture_data,
+    .data = (col32 *)default_texture_data,
     .size = {.x = 64, .y = 64},
 };
 
@@ -564,12 +571,22 @@ const global m4 m4_id = {{Q8(1), 0, 0, 0}, {0, Q8(1), 0, 0}, {0, 0, Q8(1), 0}, {
 
 // Collision
 
-typedef struct {
-    q8 x, y, w, h;
+typedef union rect {
+    struct {
+        q8 x, y, w, h;
+    };
+    struct {
+        v2 pos, size;
+    };
 } rect;
 
-typedef struct {
-    i32 x, y, w, h;
+typedef union i32rect {
+    struct {
+        i32 x, y, w, h;
+    };
+    struct {
+        v2i pos, size;
+    };
 } i32rect;
 
 bool col_point_rect(v2 p, rect r) {
@@ -598,15 +615,15 @@ rect col_rect_rect_area(rect a, rect b) {
 void draw_text(char *text, i32 x, i32 y, col32 color);
 
 typedef struct DrawTextureParams {
-    v2    pos;      // screen position
-    rect  src;      // [0, texture size]
-    rect  dst;      // [0, screen size]
-    q8    rotation; // [0, TAU)
-    col32 tint;
+    v2i     pos;      // screen position
+    i32rect src;      // [0, texture size]
+    i32rect dst;      // [0, screen size]
+    q8      rotation; // [0, TAU)
+    col32   tint;
 } DrawTextureParams;
 
-void draw_texture_fn(Texture tex, DrawTextureParams params);
-#define draw_texture(tex, ...) draw_texture_fn((tex), (DrawTextureParams){0, __VA_ARGS__})
+void draw_texture_pro(Texture tex, DrawTextureParams params);
+#define draw_texture(tex, ...) draw_texture_pro((tex), (DrawTextureParams){0, __VA_ARGS__})
 void draw_rect(rect r, col32 color);
 void draw_rect_outline(rect r, col32 color);
 

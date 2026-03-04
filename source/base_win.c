@@ -87,7 +87,7 @@ void draw_circle_outline(i32 x, i32 y, i32 r, col32 color) {
     }
 }
 
-void draw_texture_fn(Texture tex, DrawTextureParams params) {
+void draw_texture_pro(Texture tex, DrawTextureParams params) {
     if (G->draw_count == G->draw_size) return;
     G->draw_queue[G->draw_count++] =
         (DrawCmd){.t = DCT_TEXTURE_2D, .texture = &tex, .params = params};

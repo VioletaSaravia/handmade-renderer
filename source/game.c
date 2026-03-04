@@ -128,12 +128,8 @@ export void update(q8 dt, i32 tid) {
         draw_text(string_format(&ctx()->temp, "Memory used: %d KB", ctx()->perm.used / 1024), 10,
                   10, data->text_light);
 
-        // Edge case: passing test_tex as a literal doesn't work for this macro.
-        static Texture test_tex = {
-            .data = (u32 *)default_texture_data,
-            .size = {.x = 64, .y = 64},
-        };
-        draw_texture(test_tex, .pos = (v2){200, 10}, .src = (rect){0, 0, 16, 16});
+        // Edge case: passing default_texture as a literal doesn't work for this macro.
+        draw_texture(default_texture, .pos = (v2i){200, 10}, .src = (i32rect){0, 0, 48, 48});
     }
 }
 

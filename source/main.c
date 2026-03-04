@@ -375,11 +375,45 @@ void main_update(void *thread_ctx) {
                     };
                     for (i32 y_coord = next.r.y; y_coord < next.r.y + next.r.h; y_coord++) {
                         for (i32 x_coord = next.r.x; x_coord < next.r.x + next.r.w; x_coord++) {
-                            if (x_coord >= 0 && x_coord < G->screen_size.w && y_coord >= 0 &&
-                                y_coord < G->screen_size.h) {
-                                i32 coord            = y_coord * G->screen_size.w + x_coord;
-                                G->screen_buf[coord] = next.color;
+                            if (x_coord < 0 || x_coord >= G->screen_size.w || y_coord < 0 ||
+                                y_coord >= G->screen_size.h) {
+                                continue;
                             }
+
+                            i32 coord            = y_coord * G->screen_size.w + x_coord;
+                            G->screen_buf[coord] = next.color;
+                        }
+                    }
+                    break;
+                }
+
+                case DCT_TEXTURE_2D: {
+                    Texture *tex      = next.texture;
+                    v2i      out_size = next.params.dst.size.x == 0 || next.params.dst.size.y == 0
+                                            ? tex->size
+                                            : next.params.dst.size;
+                    v2i      in_size  = next.params.src.size.x == 0 || next.params.src.size.y == 0
+                                            ? tex->size
+                                            : next.params.src.size;
+
+                    v2 ratio = (v2){q8_div64(Q8(in_size.x), Q8(out_size.x)),
+                                    q8_div64(Q8(in_size.y), Q8(out_size.y))};
+
+                    for (i32 y = 0; y < out_size.y; y++) {
+                        for (i32 x = 0; x < out_size.x; x++) {
+                            v2i screen_pos = v2i_add(next.params.pos, (v2i){x, y});
+
+                            if (screen_pos.x < 0 || screen_pos.x >= G->screen_size.w ||
+                                screen_pos.y < 0 || screen_pos.y >= G->screen_size.h) {
+                                continue;
+                            }
+
+                            i32 screen_idx  = screen_pos.y * G->screen_size.w + screen_pos.x;
+                            v2i tex_coord   = (v2i){q8_to_i32(q8_mul64(Q8(x), ratio.x)),
+                                                    q8_to_i32(q8_mul64(Q8(y), ratio.y))};
+                            i32 texture_idx = tex_coord.y * tex->size.x + tex_coord.x;
+
+                            G->screen_buf[screen_idx] = tex->data[texture_idx];
                         }
                     }
                     break;
