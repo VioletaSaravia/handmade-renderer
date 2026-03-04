@@ -540,7 +540,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     for (u32 i = 1; i < THREAD_COUNT; i++) {
         ThreadCtx *ctx = &EG()->thread_ctx[i];
         ctx->id        = i;
-        ctx->thread    = (Thread)_beginthreadex(NULL, 0, main_update, (void *)ctx, 0, &ctx->os_id);
+        ctx->thread    = _beginthreadex(NULL, 0, main_update, (void *)ctx, 0, &ctx->os_id);
         INFO("Thread %02u started", i);
     }
 

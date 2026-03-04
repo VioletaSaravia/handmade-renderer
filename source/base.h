@@ -596,10 +596,19 @@ rect col_rect_rect_area(rect a, rect b) {
 // Debug
 
 void draw_text(char *text, i32 x, i32 y, col32 color);
+
+typedef struct DrawTextureParams {
+    v2    pos;      // screen position
+    rect  src;      // [0, texture size]
+    rect  dst;      // [0, screen size]
+    q8    rotation; // [0, TAU)
+    col32 tint;
+} DrawTextureParams;
+
+void draw_texture_fn(Texture tex, DrawTextureParams params);
+#define draw_texture(tex, ...) draw_texture_fn((tex), (DrawTextureParams){0, __VA_ARGS__})
 void draw_rect(rect r, col32 color);
 void draw_rect_outline(rect r, col32 color);
-
-void render_line(v2i from, v2i to, col32 color);
 
 // GUI
 
@@ -617,7 +626,7 @@ void log(const char *fmt, ...);
 
 // Input
 
-// Physical key codes. 
+// Physical key codes.
 // TODO: Map to logical keys.
 // Max value must be under `2^MOD_BITS_USED` to fit in KeyCombo.
 typedef enum Key {
@@ -718,10 +727,8 @@ typedef enum {
 
 KeyState GetAction(Action k);
 
-typedef void *Thread;
-
 typedef struct ThreadCtx {
-    Thread  thread;
+    void   *thread;
     u32     id;
     u32     os_id;
     Arena   temp;

@@ -87,6 +87,12 @@ void draw_circle_outline(i32 x, i32 y, i32 r, col32 color) {
     }
 }
 
+void draw_texture_fn(Texture tex, DrawTextureParams params) {
+    if (G->draw_count == G->draw_size) return;
+    G->draw_queue[G->draw_count++] =
+        (DrawCmd){.t = DCT_TEXTURE_2D, .texture = &tex, .params = params};
+}
+
 f32 atan2f(f32 y, f32 x) {
     const f32 PI   = 3.14159265358979f;
     const f32 PI_2 = 1.57079632679489f;
@@ -312,4 +318,4 @@ string file_read(char *path, Arena *a) {
     return (string){.text = buffer, .len = file_size};
 }
 
-Thread _beginthreadex(void *, u32, ThreadFunction, void *, u32, u32 *);
+void *_beginthreadex(void *, u32, ThreadFunction, void *, u32, u32 *);

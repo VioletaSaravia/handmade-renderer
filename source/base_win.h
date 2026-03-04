@@ -15,10 +15,16 @@ typedef enum {
     DCT_MESH_WIREFRAME,
     DCT_MESH_SOLID,
     DCT_MODEL,
+    DCT_TEXTURE_2D,
     DCT_COUNT
 } DrawCmdType;
 
-typedef struct {
+typedef struct Texture {
+    col32 *data;
+    v2i    size;
+} Texture;
+
+typedef struct DrawCmd {
     DrawCmdType t;
 
     union {
@@ -38,13 +44,18 @@ typedef struct {
             v2    from, to;
         };
 
+        struct { // 2d texture
+            Texture          *texture;
+            DrawTextureParams params;
+        };
+
         struct { // model
+            col32 *tex;
+            v2i    tex_size;
             v3    *vertices;
             i32    count;
             Face  *faces;
             i32    faces_count;
-            col32 *tex;
-            v2i    tex_size;
             m3     transform;
         };
 
