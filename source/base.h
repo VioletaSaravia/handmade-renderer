@@ -755,3 +755,10 @@ typedef struct ThreadCtx {
 typedef u32 (*ThreadFunction)(void *);
 
 #define MAIN 0
+
+typedef struct {
+    v3  pos;
+    v3n look_at; // TODO(violeta)
+} Camera;
+
+Camera* cam();

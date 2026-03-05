@@ -120,6 +120,7 @@ struct EngineData {
     GameDLL   game;
     u8       *game_memory;
 
+    Camera          cam;
     bool            shutdown;
     f32             dt;
     f32             target_dt;

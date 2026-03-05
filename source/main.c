@@ -5,13 +5,12 @@
 
 void tcc_err(void *opaque, cstr msg) { printf(string_format(&ctx()->temp, (char *)msg, "\n")); }
 
-static int draw_cmd_cmp(const void *a, const void *b) {
+static int sort_draw_cmd_by_distance(const void *a, const void *b) {
     const DrawCmd *da = (const DrawCmd *)a;
     const DrawCmd *db = (const DrawCmd *)b;
 
-    v3 cam = *(v3 *)G->game_memory;
-    q8 za  = v3_add(da->transform.pos, cam).z;
-    q8 zb  = v3_add(db->transform.pos, cam).z;
+    q8 za = v3_add(da->transform.pos, cam()->pos).z;
+    q8 zb = v3_add(db->transform.pos, cam()->pos).z;
 
     if (zb > za) return 1;
     if (zb < za) return -1;
@@ -265,18 +264,7 @@ void main_update(void *thread_ctx) {
             LOOP_BLOCK("Rendering");
             if (G->draw_count == G->draw_size) WARN("Maximum draw_size reached");
 
-            HDC  hdc = GetDC(G->hwnd);
-            RECT rc  = {0};
-            GetClientRect(G->hwnd, &rc);
-
-            i32 client_w = rc.right - rc.left;
-            i32 client_h = rc.bottom - rc.top;
-
-            HDC     mem_dc  = CreateCompatibleDC(hdc);
-            HBITMAP mem_bmp = CreateCompatibleBitmap(hdc, client_w, client_h);
-            HBITMAP old_bmp = SelectObject(mem_dc, mem_bmp);
-
-            qsort(G->draw_queue, G->draw_count, sizeof(DrawCmd), draw_cmd_cmp);
+            qsort(G->draw_queue, G->draw_count, sizeof(DrawCmd), sort_draw_cmd_by_distance);
 
             for (i32 i = 0; i < G->draw_count; i++) {
                 DrawCmd next = G->draw_queue[i];
@@ -302,7 +290,7 @@ void main_update(void *thread_ctx) {
                         v3 n = v3_mul(next.vertices[v], next.transform.scale);
                         n    = v3_rotate_xz(n, next.transform.rot.y);
                         n    = v3_add(n, next.transform.pos);
-                        n    = v3_add(n, *(v3 *)G->game_memory);
+                        n    = v3_add(n, cam()->pos);
 
                         transformed_z[v] = n.z;
                         v2 vec           = v3_project(n);
@@ -330,13 +318,13 @@ void main_update(void *thread_ctx) {
                     break;
                 }
                 case DCT_MODEL: {
-                    v2i *screen_verts  = (v2i *)alloc_temp(sizeof(v2i) * next.count);
-                    q8  *transformed_z = (q8 *)alloc_temp(sizeof(q8) * next.count);
+                    v2i *screen_verts  = ALLOC_TEMP_ARRAY(v2i, next.count);
+                    q8  *transformed_z = ALLOC_TEMP_ARRAY(q8, next.count);
                     for (i32 v = 0; v < next.count; v++) {
                         v3 n = v3_mul(next.vertices[v], next.transform.scale);
                         n    = v3_rotate_xz(n, next.transform.rot.y);
                         n    = v3_add(n, next.transform.pos);
-                        n    = v3_add(n, *(v3 *)G->game_memory);
+                        n    = v3_add(n, cam()->pos);
 
                         transformed_z[v] = n.z;
                         v2 vec           = v3_project(n);
@@ -421,6 +409,17 @@ void main_update(void *thread_ctx) {
                 default: break;
                 }
             }
+
+            HDC  hdc = GetDC(G->hwnd);
+            RECT rc  = {0};
+            GetClientRect(G->hwnd, &rc);
+
+            i32 client_w = rc.right - rc.left;
+            i32 client_h = rc.bottom - rc.top;
+
+            HDC     mem_dc  = CreateCompatibleDC(hdc);
+            HBITMAP mem_bmp = CreateCompatibleBitmap(hdc, client_w, client_h);
+            HBITMAP old_bmp = SelectObject(mem_dc, mem_bmp);
 
             HDC              buf_dc  = CreateCompatibleDC(hdc);
             BITMAPINFOHEADER buf_bmi = {
@@ -521,11 +520,12 @@ void engine_init(HINSTANCE hInstance) {
             .draw_size      = 20000,
             .metrics        = metrics_init(),
             .system_info    = systeminfo_init(),
-            .profiler       = profiler_new("Handmade Renderer"),
+            .profiler       = profiler_new("Handmade Renderer Initialization"),
         };
-        ctx()->temp = arena_new(MB(8), &ctx()->perm);
     }
 
+    BLOCK_BEGIN("engine_init");
+    ctx()->temp   = arena_new(MB(8), &ctx()->perm);
     G->draw_queue = ALLOC_ARRAY(DrawCmd, G->draw_size);
 
     QueryPerformanceFrequency(&G->freq);
@@ -569,14 +569,24 @@ void engine_init(HINSTANCE hInstance) {
 i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, i32 nCmdShow) {
     engine_init(hInstance);
 
+    BLOCK_BEGIN("game_init");
     if (G->game.init) G->game.init();
+    BLOCK_END();
 
+    BLOCK_BEGIN("thread_init");
     for (u32 i = 1; i < THREAD_COUNT; i++) {
         ThreadCtx *ctx = &EG()->thread_ctx[i];
         ctx->id        = i;
         ctx->thread    = _beginthreadex(NULL, 0, main_update, (void *)ctx, 0, &ctx->os_id);
+        ctx->temp      = arena_new(MB(1), &EG()->ctx.perm);
         INFO("Thread %02u started", i);
     }
+    EG()->thread_ctx[0] = (ThreadCtx){
+        .id   = 0,
+        .temp = arena_new(MB(1), &EG()->ctx.perm),
+    };
+    BLOCK_END();
+    profiler_end();
 
     INFO("Main Thread started");
     main_update(&G->thread_ctx[0]);
@@ -597,6 +607,5 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
     if (G->game.quit) G->game.quit();
 
-    profiler_end();
     return G->msg.wParam;
 }

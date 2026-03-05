@@ -20,14 +20,8 @@ export Info game = {
 
 typedef i32 EntityID;
 
-typedef struct {
-    v3  pos;
-    v3n look_at; // TODO(violeta)
-} Camera;
-
 struct Data {
     // Level
-    Camera cam; // DO NOT MOVE :P
     handle level_mark;
 
     // GUI
@@ -52,9 +46,9 @@ export void init() {
     data->level_mark = arena_mark(&ctx()->perm);
     string cube_data = file_read("./assets/cube.obj", &ctx()->temp);
     Mesh   cube      = mesh_from_obj(&ctx()->perm, (char *)cube_data.text);
+    *cam()           = (Camera){.pos = (v3){0, 0, Q8(3)}};
 
     *data = (Data){
-        .cam        = {.pos = (v3){0, 0, Q8(3)}},
         .entities   = ALLOC_ARRAY(EntityID, ENTITY_MAX),
         .count      = 0,
         .cap        = ENTITY_MAX,
@@ -98,10 +92,10 @@ export void init() {
 
 export void update(q8 dt, i32 tid) {
     if (tid == MAIN) {
-        if (GetAction(A_UP) >= KS_JUST_PRESSED) data->cam.pos.z -= dt;
-        if (GetAction(A_DOWN) >= KS_JUST_PRESSED) data->cam.pos.z += dt;
-        if (GetAction(A_LEFT) >= KS_JUST_PRESSED) data->cam.pos.x += dt;
-        if (GetAction(A_RIGHT) >= KS_JUST_PRESSED) data->cam.pos.x -= dt;
+        if (GetAction(A_UP) >= KS_JUST_PRESSED) cam()->pos.z -= dt * 2;
+        if (GetAction(A_DOWN) >= KS_JUST_PRESSED) cam()->pos.z += dt * 2;
+        if (GetAction(A_LEFT) >= KS_JUST_PRESSED) cam()->pos.x += dt * 2;
+        if (GetAction(A_RIGHT) >= KS_JUST_PRESSED) cam()->pos.x -= dt * 2;
 
         for (i32 y = 0; y < G->screen_size.h / q8_to_i32(data->tile_size); y++) {
             for (i32 x = 0; x < G->screen_size.w / q8_to_i32(data->tile_size); x++) {

@@ -13,6 +13,7 @@ import extern EngineData *G;
 
 EngineData *EG() { return G; }
 Context    *ctx() { return &G->ctx; }
+Camera     *cam() { return &G->cam; }
 
 void draw_wireframe(v3 *verts, i32 verts_count, v2i *edges, i32 edges_count, col32 color) {
     if (G->draw_count == G->draw_size) return;
