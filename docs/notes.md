@@ -2,8 +2,7 @@
 
 ## Rendering Pipeline
 
-The geometrical forms of 3D objects are each represented by a set 
-of vertices and a particular type of *graphics primitive* that indicates how the vertices  are  connected  to  produce  a  shape. (pp. 1)
+The geometrical forms of 3D objects are each represented by a set of vertices and a particular type of *graphics primitive* that indicates how the vertices  are  connected  to  produce a  shape. (pp. 1)
 
 An application communicates with the GPU by sending commands to a rendering  library,  such  as  OpenGL,  which  in  turn  sends  commands  to  a  driver  that  knows how to speak to the GPU in its native language. The interface to OpenGL is called a Hardware Abstraction Layer (HAL) (pp. 2)
 

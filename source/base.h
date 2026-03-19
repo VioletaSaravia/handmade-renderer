@@ -56,9 +56,9 @@ void qsort(void *ptr, u64 count, u64 size, i32 (*comp)(const void *, const void 
 
 // TODO(violeta): hash and log repeats once!
 #define INFO(msg, ...) \
-    printf(COL_INFO "[INFO]" COL_RESET "  [%s] " msg "\n", __func__, ##__VA_ARGS__)
+    printf(COL_INFO "[INFO]" COL_RESET " [%s] " msg "\n", __func__, ##__VA_ARGS__)
 #define WARN(msg, ...) \
-    printf(COL_WARN "[WARN]" COL_RESET "  [%s] " msg "\n", __func__, ##__VA_ARGS__)
+    printf(COL_WARN "[WARN]" COL_RESET " [%s] " msg "\n", __func__, ##__VA_ARGS__)
 #define ERR(msg, ...) \
     printf(COL_ERROR "[ERROR]" COL_RESET " [%s] " msg "\n", __func__, ##__VA_ARGS__)
 #define FATAL(msg, ...)                                                                \
@@ -347,7 +347,7 @@ v2 v2_screen(v2 v, v2i screen) {
 
 // Data
 
-typedef i32 handle;
+typedef i32 ArenaMark;
 u8         *os_alloc(i32 size);
 
 typedef struct {
@@ -392,8 +392,8 @@ Arena arena_new(i32 cap, Arena *parent) {
     };
 }
 
-handle arena_mark(Arena *a) { return a->used; }
-void   arena_reset(Arena *a, handle mark) { a->used = a->used >= mark ? mark : a->used; }
+ArenaMark arena_mark(Arena *a) { return a->used; }
+void   arena_reset(Arena *a, ArenaMark mark) { a->used = a->used >= mark ? mark : a->used; }
 u8    *alloc_perm(i32 size) { return alloc(size, &ctx()->perm); }
 u8    *alloc_temp(i32 size) { return alloc(size, &ctx()->temp); }
 #define ALLOC(type) (type *)alloc_perm(sizeof(type))
@@ -484,7 +484,7 @@ Mesh mesh_from_obj(Arena *a, cstr obj) {
         .faces_count = face_count,
     };
 
-    handle temp_mark = arena_mark(&ctx()->temp);
+    ArenaMark temp_mark = arena_mark(&ctx()->temp);
     v2    *uvs       = uv_count > 0 ? ALLOC_TEMP_ARRAY(v2, uv_count) : 0;
 
     i32   vi  = 0;

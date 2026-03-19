@@ -18,11 +18,11 @@ export Info game = {
 
 #define ENTITY_MAX 2000
 
-typedef i32 EntityID;
+typedef i32 eid;
 
 struct Data {
     // Level
-    handle level_mark;
+    ArenaMark level;
 
     // GUI
     col32 fg, bg, text_light, text_dark;
@@ -34,22 +34,22 @@ struct Data {
     q8    tile_size;
 
     // Entities
-    EntityID *entities;
-    i32       count, cap;
-    m3       *e_transform;
-    Mesh      e_mesh;
-    Texture  *e_tex;
+    eid     *entities;
+    i32      count, cap;
+    m3      *e_transform;
+    Mesh     e_mesh;
+    Texture *e_tex;
 };
 
 export void init() {
     init_default_texture();
-    data->level_mark = arena_mark(&ctx()->perm);
+    data->level      = arena_mark(&ctx()->perm);
     string cube_data = file_read("./assets/cube.obj", &ctx()->temp);
     Mesh   cube      = mesh_from_obj(&ctx()->perm, (char *)cube_data.text);
     *cam()           = (Camera){.pos = (v3){0, 0, Q8(3)}};
 
     *data = (Data){
-        .entities   = ALLOC_ARRAY(EntityID, ENTITY_MAX),
+        .entities   = ALLOC_ARRAY(eid, ENTITY_MAX),
         .count      = 0,
         .cap        = ENTITY_MAX,
         .e_mesh     = cube,
