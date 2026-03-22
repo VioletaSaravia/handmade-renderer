@@ -81,7 +81,7 @@ typedef struct {
 
     void (*init)();
     Info *info;
-    void (*update)(q8 dt, i32 tid);
+    void (*update)(q8 dt);
     void (*quit)();
     i32 (*gamedata_size)();
     FILETIME last_write;
@@ -115,10 +115,9 @@ struct SystemInfo {
 };
 
 struct EngineData {
-    Context   ctx;
-    ThreadCtx thread_ctx[THREAD_COUNT];
-    GameDLL   game;
-    u8       *game_memory;
+    Context ctx;
+    GameDLL game;
+    u8     *game_memory;
 
     Camera          cam;
     bool            shutdown;
@@ -139,4 +138,5 @@ struct EngineData {
     SystemInfo      system_info;
     Profiler        profiler;
     LoopProfiler    loop_profiler;
+    Texture         default_texture;
 };

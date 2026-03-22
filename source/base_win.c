@@ -223,52 +223,6 @@ internal inline void _mm_pause() {
 #endif
 }
 
-v2i thread_range(i32 total, i32 thread_id) {
-    v2i result = {0};
-    if (thread_id == 0) {
-        result.from = 0;
-        result.to   = total;
-        return result;
-    }
-
-    i32 num_threads = THREAD_COUNT;
-
-    if (thread_id > num_threads) {
-        result.from = 0;
-        result.to   = 0;
-        return result;
-    }
-
-    if (total < num_threads) {
-        result.from = thread_id - 1;
-        result.to   = thread_id;
-        return result;
-    }
-
-    i32 per_thread = total / num_threads;
-    result.from    = (thread_id - 1) * per_thread;
-    result.to      = (thread_id == num_threads) ? total : result.from + per_thread;
-    return result;
-}
-
-void thread_barrier() {
-    persist volatile i64 barrier_count      = 0;
-    persist volatile i64 barrier_generation = 0;
-    persist const i32    barrier_total      = THREAD_COUNT;
-
-    i64 gen = read_acquire(&barrier_generation);
-    InterlockedIncrement((LONG *)&barrier_count);
-
-    if (read_acquire(&barrier_count) == barrier_total) {
-        InterlockedExchange((LONG *)&barrier_count, 0);
-        InterlockedIncrement((LONG *)&barrier_generation);
-    } else {
-        while (read_acquire(&barrier_generation) == gen) {
-            _mm_pause();
-        }
-    }
-}
-
 KeyState GetAction(Action a) {
     for (i32 i = 0; i < 2; i++) {
         KeyCombo binding = EG()->game.info->keybinds[a][i];
@@ -318,5 +272,3 @@ string file_read(char *path, Arena *a) {
     CloseHandle(file);
     return (string){.text = buffer, .len = file_size};
 }
-
-void *_beginthreadex(void *, u32, ThreadFunction, void *, u32, u32 *);

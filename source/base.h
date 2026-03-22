@@ -1,10 +1,6 @@
 #pragma once
 #include <stdint.h>
 
-#ifndef THREAD_COUNT
-#define THREAD_COUNT 4
-#endif
-
 #define export __declspec(dllexport)
 #define import __declspec(dllimport)
 
@@ -98,11 +94,8 @@ q8 q8_ceil(q8 val) { return (val + 0xFF) & ~0xFF; }
 q8 q8_round(q8 val) { return (val + 0x80) & ~0xFF; }
 q8 q8_frac(q8 val) { return val & 0xFF; }
 
-q8 q8_mul(q8 a, q8 b) { return (q8)((a * b) >> 8); }
-q8 q8_div(q8 a, q8 b) { return (q8)((a << 8) / b); }
-
-q8 q8_mul64(q8 a, q8 b) { return (q8)(((i64)a * (i64)b) >> 8); }
-q8 q8_div64(q8 a, q8 b) { return (q8)(((i64)a << 8) / b); }
+q8 q8_mul(q8 a, q8 b) { return (q8)(((i64)a * (i64)b) >> 8); }
+q8 q8_div(q8 a, q8 b) { return (q8)(((i64)a << 8) / b); }
 
 // 1.25.6 fixed point
 typedef i32 q6;
@@ -121,11 +114,8 @@ q6 q6_ceil(q6 val) { return (val + 0x3F) & ~0x3F; }
 q6 q6_round(q6 val) { return (val + 0x20) & ~0x3F; }
 q6 q6_frac(q6 val) { return val & 0x3F; }
 
-q6 q6_mul(q6 a, q6 b) { return (q6)((a * b) >> 6); }
-q6 q6_div(q6 a, q6 b) { return (q6)((a << 6) / b); }
-
-q6 q6_mul64(q6 a, q6 b) { return (q6)(((i64)a * (i64)b) >> 6); }
-q6 q6_div64(q6 a, q6 b) { return (q6)(((i64)a << 6) / b); }
+q6 q6_mul(q6 a, q6 b) { return (q6)(((i64)a * (i64)b) >> 6); }
+q6 q6_div(q6 a, q6 b) { return (q6)(((i64)a << 6) / b); }
 
 #ifndef Q_FRAC
 #define Q_FRAC 8
@@ -148,8 +138,6 @@ typedef q6 q32;
 #define Q32_FRAC(q32_val) ((q32_val) & ((1 << Q_FRAC) - 1))
 #define Q32_MUL(a, b) ((q32)(((i64)(a) * (i64)(b)) >> Q_FRAC))
 #define Q32_DIV(a, b) ((q32)(((i64)(a) << Q_FRAC) / (b)))
-#define Q32_MUL64(a, b) ((q32)(((i64)(a) * (i64)(b)) >> Q_FRAC))
-#define Q32_DIV64(a, b) ((q32)(((i64)(a) << Q_FRAC) / (b)))
 
 #define Q32_PI (Q32_FROM_F32(3.14159265358979f))
 #define Q32_TAU (Q32_FROM_F32(6.28318530717958f))
@@ -201,23 +189,6 @@ typedef struct Texture {
     v2i    size;
 } Texture;
 
-global col32 default_texture_data[64][64];
-
-global Texture default_texture = {
-    .data = (col32 *)default_texture_data,
-    .size = {.x = 64, .y = 64},
-};
-
-void init_default_texture() {
-    for (i32 y = 0; y < 64; y++) {
-        for (i32 x = 0; x < 64; x++) {
-            u32 checker = ((x / 8) % 2) ^ ((y / 8) % 2);
-            default_texture_data[y][x] =
-                rgb(checker ? 200 : 50, checker ? 200 : 50, checker ? 200 : 50);
-        }
-    }
-}
-
 typedef union {
     q8 val[3];
     struct {
@@ -260,21 +231,21 @@ inline v3 v3_sub(v3 a, v3 b) {
 
 inline v3 v3_mul(v3 a, v3 b) {
     return (v3){
-        .x = q8_mul64(a.x, b.x),
-        .y = q8_mul64(a.y, b.y),
-        .z = q8_mul64(a.z, b.z),
+        .x = q8_mul(a.x, b.x),
+        .y = q8_mul(a.y, b.y),
+        .z = q8_mul(a.z, b.z),
     };
 }
 
 inline q8 v3_dot(v3 a, v3 b) {
-    return q8_mul64(a.x, b.x) + q8_mul64(a.y, b.y) + q8_mul64(a.z, b.z);
+    return q8_mul(a.x, b.x) + q8_mul(a.y, b.y) + q8_mul(a.z, b.z);
 }
 
 inline v3 v3_cross(v3 a, v3 b) {
     return (v3){
-        .x = q8_mul64(a.y, b.z) - q8_mul64(a.z, b.y),
-        .y = q8_mul64(a.z, b.x) - q8_mul64(a.x, b.z),
-        .z = q8_mul64(a.x, b.y) - q8_mul64(a.y, b.x),
+        .x = q8_mul(a.y, b.z) - q8_mul(a.z, b.y),
+        .y = q8_mul(a.z, b.x) - q8_mul(a.x, b.z),
+        .z = q8_mul(a.x, b.y) - q8_mul(a.y, b.x),
     };
 }
 
@@ -282,7 +253,7 @@ v2 v3_project(v3 v) {
     // Prevent division by zero: clamp z to a small minimum
     q8 min_z = 1; // raw q8 value of 1/256, smallest positive
     q8 z     = v.z > min_z ? v.z : min_z;
-    return (v2){q8_div64(v.x, z), q8_div64(v.y, z)};
+    return (v2){q8_div(v.x, z), q8_div(v.y, z)};
 }
 
 // 64-entry sine table for one quadrant [0, PI/2], in q8 format.
@@ -743,18 +714,6 @@ typedef enum {
 } KeyState;
 
 KeyState GetAction(Action k);
-
-typedef struct ThreadCtx {
-    void   *thread;
-    u32     id;
-    u32     os_id;
-    Arena   temp;
-    GUICtx *gui;
-} ThreadCtx;
-
-typedef u32 (*ThreadFunction)(void *);
-
-#define MAIN 0
 
 typedef struct {
     v3  pos;

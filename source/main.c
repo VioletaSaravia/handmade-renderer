@@ -42,6 +42,8 @@ static GameDLL load_dll() {
     if (tcc_add_symbol(result.tcc, "data", &G->game_memory) == -1) goto cleanup;
     if (tcc_relocate(result.tcc, TCC_RELOCATE_AUTO) == -1) goto cleanup;
 
+    INFO("Game compiled");
+
     result.info = tcc_get_symbol(result.tcc, "game");
     if (!result.info) goto cleanup;
 
@@ -70,16 +72,21 @@ cleanup:
     return (GameDLL){0};
 }
 
-static void hot_reload() {
+static bool hot_reload() {
     FILETIME new_write = {0};
-    if (!GetLastWriteTime(GAME_ENTRYPOINT, &new_write)) return;
-    if (CompareFileTime(&new_write, &G->game.last_write) == 0) return;
+    if (!GetLastWriteTime(GAME_ENTRYPOINT, &new_write)) return false;
+    if (CompareFileTime(&new_write, &G->game.last_write) == 0) return false;
 
+    INFO("We're hot reloading!");
     GameDLL new_dll = load_dll();
-    if (!new_dll.tcc) return;
+    if (!new_dll.tcc) {
+        return false;
+    }
 
     tcc_delete(G->game.tcc);
     G->game = new_dll;
+
+    return true;
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd, u32 message, WPARAM wParam, LPARAM lParam) {
@@ -97,18 +104,96 @@ LRESULT CALLBACK WndProc(HWND hwnd, u32 message, WPARAM wParam, LPARAM lParam) {
     return 0;
 }
 
-void main_update(void *thread_ctx) {
-    ThreadCtx *th = (ThreadCtx *)thread_ctx;
-    if (th->id == MAIN) LOOP_PROFILER();
+i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, i32 nCmdShow) {
+    // SetProcessDPIAware();
+    {
+        Arena perm = arena_new(MB(32), NULL);
+
+        G  = (EngineData *)alloc(sizeof(EngineData), &perm);
+        *G = (EngineData){
+            .ctx =
+                {
+                    .perm = perm,
+                },
+            .prev_placement = {sizeof(WINDOWPLACEMENT)},
+            .screen_size    = {.w = 640, .h = 360},
+            .draw_size      = 20000,
+            .metrics        = metrics_init(),
+            .system_info    = systeminfo_init(),
+            .profiler       = profiler_new("Handmade Renderer Initialization"),
+        };
+
+        col32 *default_texture_data = ALLOC_ARRAY(col32, 64 * 64);
+        for (i32 y = 0; y < 64; y++) {
+            for (i32 x = 0; x < 64; x++) {
+                u32 checker = ((x / 8) % 2) ^ ((y / 8) % 2);
+                default_texture_data[y * 64 + x] =
+                    rgb(checker ? 200 : 50, checker ? 200 : 50, checker ? 200 : 50);
+            }
+        }
+
+        G->default_texture = (Texture){
+            .data = (col32 *)default_texture_data,
+            .size = {.x = 64, .y = 64},
+        };
+    }
+
+    BLOCK_BEGIN("engine_init");
+    ctx()->temp   = arena_new(MB(8), &ctx()->perm);
+    G->draw_queue = ALLOC_ARRAY(DrawCmd, G->draw_size);
+
+    QueryPerformanceFrequency(&G->freq);
+    G->target_dt  = 1.0f / 60.0f;
+    G->dt         = G->target_dt;
+    G->next_frame = now_seconds();
+
+    G->game = load_dll();
+    if (!G->game.tcc) FATAL("Couldn't initialize TCC");
+    G->game.info->keybinds[A_FULLSCREEN][0] = (KeyCombo){K_F11};
+    G->game.info->keybinds[A_QUIT][0]       = (KeyCombo){K_F4 | M_SHIFT};
+    G->game.info->keybinds[A_RESET][0]      = (KeyCombo){K_F5};
+
+    G->game_memory = alloc_perm(G->game.gamedata_size());
+    G->screen_buf  = ALLOC_ARRAY(u32, G->screen_size.w * G->screen_size.h);
+
+    WNDCLASS wc = {
+        .hInstance     = hInstance,
+        .lpszClassName = G->game.info->name,
+        .lpfnWndProc   = (WNDPROC)WndProc,
+        .style         = CS_DBLCLKS | CS_VREDRAW | CS_HREDRAW,
+        .hbrBackground = NULL, // (HBRUSH)GetStockObject(BLACK_BRUSH),
+        .hIcon         = LoadIcon(NULL, IDI_APPLICATION),
+        .hCursor       = LoadCursor(NULL, IDC_ARROW),
+    };
+
+    if (!RegisterClass(&wc)) FATAL("Couldn't initialize window");
+
+    DWORD style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+    RECT  wr    = {0, 0, G->screen_size.w, G->screen_size.h};
+    AdjustWindowRect(&wr, style, false);
+
+    cstr window_name =
+        string_format(&G->ctx.perm, "%s %s", G->game.info->name, G->game.info->version);
+    G->hwnd = CreateWindow(G->game.info->name, window_name, style, CW_USEDEFAULT, CW_USEDEFAULT,
+                           wr.right - wr.left, wr.bottom - wr.top, 0, 0, hInstance, 0);
+    if (!G->hwnd) FATAL("Couldn't initialize window");
+    BLOCK_END();
+
+    BLOCK_BEGIN("game_init");
+    if (G->game.init) G->game.init();
+    BLOCK_END();
+
+    profiler_end();
+
+    LOOP_PROFILER();
 
     while (!G->shutdown) {
-        if (th->id == MAIN) LOOP_BEGIN();
-        f64 frame_start = now_seconds();
+        LOOP_BEGIN();
+        f64  frame_start = now_seconds();
+        bool reloaded    = hot_reload();
 
         // Input
-        if (th->id == MAIN) {
-            hot_reload();
-
+        {
             for (i32 i = 0; i < K_COUNT; i++) {
                 if (G->keys[i] == KS_JUST_RELEASED) G->keys[i] = KS_RELEASED;
                 if (G->keys[i] == KS_JUST_PRESSED) G->keys[i] = KS_PRESSED;
@@ -253,14 +338,12 @@ void main_update(void *thread_ctx) {
             if (GetAction(A_RESET) == KS_JUST_PRESSED) G->game.init();
         }
 
-        thread_barrier();
-        if (th->id == MAIN) LOOP_BLOCK("Game Update");
-        G->game.update((q8)(G->dt * 256.0f), th->id);
-        if (th->id == MAIN) LOOP_BLOCK_END();
-        thread_barrier();
+        LOOP_BLOCK("Game Update");
+        G->game.update((q8)(G->dt * 256.0f));
+        LOOP_BLOCK_END();
 
         // Rendering
-        if (th->id == MAIN) {
+        {
             LOOP_BLOCK("Rendering");
             if (G->draw_count == G->draw_size) WARN("Maximum draw_size reached");
 
@@ -384,8 +467,8 @@ void main_update(void *thread_ctx) {
                                             ? tex->size
                                             : next.params.src.size;
 
-                    v2 ratio = (v2){q8_div64(Q8(in_size.x), Q8(out_size.x)),
-                                    q8_div64(Q8(in_size.y), Q8(out_size.y))};
+                    v2 ratio = (v2){q8_div(Q8(in_size.x), Q8(out_size.x)),
+                                    q8_div(Q8(in_size.y), Q8(out_size.y))};
 
                     for (i32 y = 0; y < out_size.y; y++) {
                         for (i32 x = 0; x < out_size.x; x++) {
@@ -397,8 +480,8 @@ void main_update(void *thread_ctx) {
                             }
 
                             i32 screen_idx  = screen_pos.y * G->screen_size.w + screen_pos.x;
-                            v2i tex_coord   = (v2i){q8_to_i32(q8_mul64(Q8(x), ratio.x)),
-                                                    q8_to_i32(q8_mul64(Q8(y), ratio.y))};
+                            v2i tex_coord   = (v2i){q8_to_i32(q8_mul(Q8(x), ratio.x)),
+                                                    q8_to_i32(q8_mul(Q8(y), ratio.y))};
                             i32 texture_idx = tex_coord.y * tex->size.x + tex_coord.x;
 
                             G->screen_buf[screen_idx] = tex->data[texture_idx];
@@ -484,7 +567,7 @@ void main_update(void *thread_ctx) {
         }
 
         // Timing
-        if (th->id == MAIN) {
+        {
             LOOP_BLOCK("Leftover");
             G->next_frame += G->target_dt;
 
@@ -499,110 +582,7 @@ void main_update(void *thread_ctx) {
             LOOP_BLOCK_END();
         }
 
-        thread_barrier();
-        if (th->id == MAIN) LOOP_END();
-    }
-}
-
-void engine_init(HINSTANCE hInstance) {
-    // SetProcessDPIAware();
-    {
-        Arena perm = arena_new(MB(32), NULL);
-
-        G  = (EngineData *)alloc(sizeof(EngineData), &perm);
-        *G = (EngineData){
-            .ctx =
-                {
-                    .perm = perm,
-                },
-            .prev_placement = {sizeof(WINDOWPLACEMENT)},
-            .screen_size    = {.w = 640, .h = 360},
-            .draw_size      = 20000,
-            .metrics        = metrics_init(),
-            .system_info    = systeminfo_init(),
-            .profiler       = profiler_new("Handmade Renderer Initialization"),
-        };
-    }
-
-    BLOCK_BEGIN("engine_init");
-    ctx()->temp   = arena_new(MB(8), &ctx()->perm);
-    G->draw_queue = ALLOC_ARRAY(DrawCmd, G->draw_size);
-
-    QueryPerformanceFrequency(&G->freq);
-    G->target_dt  = 1.0f / 60.0f;
-    G->dt         = G->target_dt;
-    G->next_frame = now_seconds();
-
-    G->game = load_dll();
-    if (!G->game.tcc) FATAL("Couldn't initialize TCC");
-    G->game.info->keybinds[A_FULLSCREEN][0] = (KeyCombo){K_F11};
-    G->game.info->keybinds[A_QUIT][0]       = (KeyCombo){K_F4 | M_SHIFT};
-    G->game.info->keybinds[A_RESET][0]      = (KeyCombo){K_F5};
-
-    G->game_memory = alloc_perm(G->game.gamedata_size());
-    G->screen_buf  = ALLOC_ARRAY(u32, G->screen_size.w * G->screen_size.h);
-
-    WNDCLASS wc = {
-        .hInstance     = hInstance,
-        .lpszClassName = G->game.info->name,
-        .lpfnWndProc   = (WNDPROC)WndProc,
-        .style         = CS_DBLCLKS | CS_VREDRAW | CS_HREDRAW,
-        .hbrBackground = NULL, // (HBRUSH)GetStockObject(BLACK_BRUSH),
-        .hIcon         = LoadIcon(NULL, IDI_APPLICATION),
-        .hCursor       = LoadCursor(NULL, IDC_ARROW),
-    };
-
-    if (!RegisterClass(&wc)) FATAL("Couldn't initialize window");
-
-    DWORD style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
-    RECT  wr    = {0, 0, G->screen_size.w, G->screen_size.h};
-    AdjustWindowRect(&wr, style, false);
-
-    cstr window_name =
-        string_format(&G->ctx.perm, "%s %s", G->game.info->name, G->game.info->version);
-    G->hwnd = CreateWindow(G->game.info->name, window_name, style, CW_USEDEFAULT, CW_USEDEFAULT,
-                           wr.right - wr.left, wr.bottom - wr.top, 0, 0, hInstance, 0);
-    if (!G->hwnd) FATAL("Couldn't initialize window");
-    BLOCK_END();
-}
-
-i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, i32 nCmdShow) {
-    engine_init(hInstance);
-
-    BLOCK_BEGIN("game_init");
-    if (G->game.init) G->game.init();
-    BLOCK_END();
-
-    BLOCK_BEGIN("thread_init");
-    for (u32 i = 1; i < THREAD_COUNT; i++) {
-        ThreadCtx *ctx = &EG()->thread_ctx[i];
-        ctx->id        = i;
-        ctx->thread    = _beginthreadex(NULL, 0, main_update, (void *)ctx, 0, &ctx->os_id);
-        ctx->temp      = arena_new(MB(1), &EG()->ctx.perm);
-        INFO("Thread %02u started", i);
-    }
-    EG()->thread_ctx[0] = (ThreadCtx){
-        .id   = 0,
-        .temp = arena_new(MB(1), &EG()->ctx.perm),
-    };
-    BLOCK_END();
-    profiler_end();
-
-    INFO("Main Thread started");
-    main_update(&G->thread_ctx[0]);
-    INFO("Main Thread ended");
-
-    for (u32 i = 1; i < THREAD_COUNT; i++) {
-        ThreadCtx *ctx = &EG()->thread_ctx[i];
-        if (!ctx->thread) continue;
-
-        WaitForSingleObject(ctx->thread, INFINITE);
-
-        u32 exit_code = 0;
-        GetExitCodeThread(ctx->thread, (LPDWORD)&exit_code);
-
-        CloseHandle(ctx->thread);
-        INFO("Thread %02u ended", i);
+        LOOP_END();
     }
 
     if (G->game.quit) G->game.quit();
