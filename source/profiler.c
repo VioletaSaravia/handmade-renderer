@@ -1,5 +1,4 @@
 #include "profiler.h"
-#include <winnt.h>
 
 Profiler profiler_new(cstr name) {
     Profiler result = {
@@ -14,7 +13,7 @@ Profiler profiler_new(cstr name) {
 }
 
 void block_begin(u64 id, cstr label, cstr file, i32 line, u64 bytesProcessed) {
-    Profiler *p = &G->profiler;
+    Profiler *p = &EG()->profiler;
     if (id >= MAX_BLOCKS) {
         return;
     }
@@ -43,14 +42,15 @@ void block_begin(u64 id, cstr label, cstr file, i32 line, u64 bytesProcessed) {
 }
 
 void block_bytes(u64 bytes) {
-    G->profiler.blocks[G->profiler.queue[G->profiler.queue_len - 1]].bytesProcessed += bytes;
+    EG()->profiler.blocks[EG()->profiler.queue[EG()->profiler.queue_len - 1]].bytesProcessed +=
+        bytes;
 }
 
 void block_end() {
     LARGE_INTEGER now = {0};
     QueryPerformanceCounter(&now);
 
-    Profiler *p = &G->profiler;
+    Profiler *p = &EG()->profiler;
     Block    *m = &p->blocks[p->queue[--p->queue_len]];
     m->time_ex += now.QuadPart - m->from;
     m->time_inc += now.QuadPart - m->from;
@@ -65,7 +65,8 @@ void block_end() {
 static f64 to_gb(f64 bytes) { return bytes / 1024.0 / 1024.0 / 1024.0; }
 
 void profiler_end() {
-    Profiler *p = &G->profiler;
+    Profiler *p = &EG()->profiler;
+    if (!p) return;
     if (p->start == 0) return;
     if (p->ended) return;
 
@@ -128,7 +129,7 @@ void rep_begin(RepProfiler *p) {
     p->current = (RepBlock){
         .time       = (u64)(perfCounter.QuadPart),
         .bytes      = 0,
-        .pageFaults = ReadPageFaultCount(G->metrics),
+        .pageFaults = get_page_fault_count(EG()->metrics),
     };
 }
 
@@ -138,7 +139,7 @@ void rep_end(RepProfiler *p) {
     LARGE_INTEGER perfCounter = {0};
     QueryPerformanceCounter(&perfCounter);
     p->current.time       = perfCounter.QuadPart - p->current.time;
-    p->current.pageFaults = ReadPageFaultCount(G->metrics) - p->current.pageFaults;
+    p->current.pageFaults = get_page_fault_count(EG()->metrics) - p->current.pageFaults;
 
     if (p->current.time < p->min.time || p->min.time == 0) {
         p->min = p->current;
@@ -192,9 +193,9 @@ void repprofiler_print(RepProfiler *p) {
 
 #define BLOCK_BEGIN(name) block_begin(__COUNTER__ + 1, name, __FILE__, __LINE__, 0)
 #define BLOCK_END() block_end()
-#define PROFILE(name, code)                                 \
+#define PROFILE(name, code)                                    \
     block_begin(__COUNTER__ + 1, name, __FILE__, __LINE__, 0); \
-    code;                                                   \
+    code;                                                      \
     block_end();
 
 #define REPETITION_PROFILE(name, count)                        \
@@ -220,3 +221,143 @@ void repprofiler_print(RepProfiler *p) {
 #define REPETITION_END(...)
 
 #endif
+
+LoopProfiler loopprofiler_new(cstr name, i32 initial_counter) {
+    LARGE_INTEGER perfCounter = {0};
+    QueryPerformanceCounter(&perfCounter);
+    return (LoopProfiler){
+        .name            = name,
+        .start           = perfCounter.QuadPart,
+        .initial_counter = initial_counter,
+        .avg_of          = 100,
+    };
+}
+
+void loop_begin(LoopProfiler *p) {
+    LARGE_INTEGER perfCounter = {0};
+    QueryPerformanceCounter(&perfCounter);
+    p->start = perfCounter.QuadPart;
+
+    for (i32 i = 0; i < MAX_BLOCKS; i++) {
+        p->blocks[i] = (Block){0};
+    }
+    p->queue_len = 0;
+
+    loop_block_begin(p, p->initial_counter, "Loop", __FILE__, __LINE__, 0);
+}
+
+void loop_end(LoopProfiler *p) {
+    LARGE_INTEGER perfFreq = {0};
+    QueryPerformanceFrequency(&perfFreq);
+    loop_block_end(p);
+
+    if (p->blocks_len || p->queue_len)
+        ERR("%d blocks not closed in loop profiler %s", p->queue_len, p->name);
+
+    for (i32 i = 0; i < MAX_BLOCKS; i++) {
+        Block next   = p->blocks[i];
+        Block avg    = p->avgs[i];
+        i32   avg_of = min(p->avg_of, next.iterations);
+        if (next.iterations == 0) continue;
+
+        Block new_avg = {
+            .bytesProcessed = (avg.bytesProcessed * (avg_of - 1) + next.bytesProcessed) / avg_of,
+            .time_ex        = (avg.time_ex * (avg_of - 1) + next.time_ex) / avg_of,
+            .time_inc       = (avg.time_inc * (avg_of - 1) + next.time_inc) / avg_of,
+            .file           = next.file,
+            .from           = next.from,
+            .iterations     = next.iterations,
+            .line           = next.line,
+            .label          = next.label,
+        };
+
+        p->avgs[i] = new_avg;
+
+        draw_text(string_format(&ctx()->temp, "\t> %s: \t%.2f ms", new_avg.label,
+                                ((f64)new_avg.time_inc / (f64)perfFreq.QuadPart) * 1024.0),
+                  10, 50 + i * 15, WHITE);
+    }
+}
+
+void loop_print(LoopProfiler *p) {
+    LARGE_INTEGER perfFreq = {0};
+    QueryPerformanceFrequency(&perfFreq);
+
+    Block main      = p->avgs[0];
+    f64   totalTime = ((f64)(main.time_inc) / (f64)(perfFreq.QuadPart));
+
+    INFO("Average %s time: %.6f ms", p->name, totalTime);
+    printf(" %-24s \t| %-25s \t| %-25s \t| %-12s\n", "Name[n]", "Time (Ex)", "Time (Inc)",
+           "Bandwidth");
+    printf("-----------------------------------------------------------------------------------"
+           "--------------------"
+           "--------\n");
+
+    for (i32 i = 1; i < MAX_BLOCKS; i++) {
+        Block next = p->avgs[i];
+        if (next.iterations == 0) continue;
+
+        f64 nextTimeEx  = ((f64)(next.time_ex) / (f64)(perfFreq.QuadPart));
+        f64 nextTimeInc = ((f64)(next.time_inc) / (f64)(perfFreq.QuadPart));
+        if (next.bytesProcessed == 0) {
+            printf(" %-20s [%llu] \t| %.5f ms\t(%.2f%%) \t| %.5f ms\t(%.2f%%) \t|\n", next.label,
+                   next.iterations, nextTimeEx, (nextTimeEx / totalTime) * 100, nextTimeInc,
+                   (nextTimeInc / totalTime) * 100);
+        } else {
+            printf(" %-20s [%llu] \t| %.5f ms\t(%.2f%%) \t| %.5f ms\t(%.2f%%) \t| %.3f GB/s\n",
+                   next.label, next.iterations, nextTimeEx * 1024, (nextTimeEx / totalTime) * 100,
+                   nextTimeInc * 1024, (nextTimeInc / totalTime) * 100,
+                   to_gb((f64)(next.bytesProcessed) / nextTimeEx));
+        }
+    }
+}
+
+void loop_block_begin(LoopProfiler *p, u64 id, cstr label, cstr file, i32 line,
+                      u64 bytesProcessed) {
+    id -= p->initial_counter;
+
+    if (id >= MAX_BLOCKS) {
+        ERR("Exceeded MAX_BLOCKS in loop profiler. Can't profile %s at %s:%d", label, file, line);
+        p->queue_len++;
+        return;
+    }
+
+    Block        *m    = &p->blocks[id];
+    LARGE_INTEGER time = {0};
+    QueryPerformanceCounter(&time);
+
+    if (p->queue_len > 0) {
+        Block *prev = &p->blocks[p->queue[p->queue_len - 1]];
+        prev->time_ex += time.QuadPart - prev->from;
+        prev->time_inc += time.QuadPart - prev->from;
+    }
+
+    m->from  = time.QuadPart;
+    m->label = label;
+    m->file  = file;
+    m->line  = line;
+    m->bytesProcessed += bytesProcessed;
+
+    p->queue[p->queue_len++] = id;
+
+    m->iterations++;
+
+    return;
+}
+
+void loop_block_add_bytes(LoopProfiler *p, u64 bytes) {}
+
+void loop_block_end(LoopProfiler *p) {
+    LARGE_INTEGER now = {0};
+    QueryPerformanceCounter(&now);
+
+    Block *m = &p->blocks[p->queue[--p->queue_len]];
+    m->time_ex += now.QuadPart - m->from;
+    m->time_inc += now.QuadPart - m->from;
+
+    if (p->queue_len > 0) {
+        Block *prev = &p->blocks[p->queue[p->queue_len - 1]];
+        prev->from  = now.QuadPart;
+        prev->time_inc += now.QuadPart - m->from;
+    }
+}
