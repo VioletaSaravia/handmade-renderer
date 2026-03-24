@@ -18,6 +18,24 @@
                 "showReuseMessage": true,
                 "clear": false
             }
+        },
+        {
+            "label": "Build",
+            "type": "shell",
+            "command": "./build.bat",
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            }
         }
     ]
 }
