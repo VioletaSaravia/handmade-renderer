@@ -48,7 +48,7 @@ export void init() {
         .count      = 0,
         .cap        = ENTITY_MAX,
         .e_mesh     = cube,
-        .e_tex      = &EG()->default_texture,
+        .e_tex      = NULL,
         .fg         = rgb(110, 124, 205),
         .bg         = rgb(51, 45, 116),
         .text_light = rgb(230, 240, 250),

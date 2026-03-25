@@ -37,14 +37,15 @@ void draw_mesh(v3 *verts, i32 verts_count, v2i *edges, i32 edges_count, col32 co
 
 void draw_model(Mesh mesh, Texture *tex, m3 transform) {
     if (G->draw_count == G->draw_size) return;
-    G->draw_queue[G->draw_count++] = (DrawCmd){.t           = DCT_MODEL,
-                                               .vertices    = mesh.verts,
-                                               .count       = mesh.verts_count,
-                                               .faces       = mesh.faces,
-                                               .faces_count = mesh.faces_count,
-                                               .tex         = tex->data,
-                                               .tex_size    = tex->size,
-                                               .transform   = transform};
+    G->draw_queue[G->draw_count++] =
+        (DrawCmd){.t           = DCT_MODEL,
+                  .vertices    = mesh.verts,
+                  .count       = mesh.verts_count,
+                  .faces       = mesh.faces,
+                  .faces_count = mesh.faces_count,
+                  .tex         = tex ? tex->data : EG()->default_texture.data,
+                  .tex_size    = tex ? tex->size : EG()->default_texture.size,
+                  .transform   = transform};
 }
 
 void draw_rect(rect r, col32 color) {
