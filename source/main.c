@@ -200,6 +200,28 @@ internal inline i64 read_acquire(volatile i64 *src) {
     return val;
 }
 
+internal void render_line(v2i from, v2i to, col32 color) {
+    i32 dx = to.x - from.x;
+    i32 dy = to.y - from.y;
+
+    i32 steps = abs(dx) > abs(dy) ? abs(dx) : abs(dy);
+    if (steps == 0) return;
+
+    f32 x_inc = (f32)dx / steps;
+    f32 y_inc = (f32)dy / steps;
+
+    f32 x = (f32)from.x;
+    f32 y = (f32)from.y;
+
+    for (i32 i = 0; i <= steps; i++) {
+        if ((i16)x >= 0 && (i16)x < G->screen_size.w && (i16)y >= 0 && (i16)y < G->screen_size.h) {
+            G->screen_buf[(i16)y * G->screen_size.w + (i16)x] = color;
+        }
+        x += x_inc;
+        y += y_inc;
+    }
+}
+
 internal void render_filled_triangle(v2i p0, v2i p1, v2i p2, col32 color) {
     if (p0.y > p1.y) {
         v2i tmp = p0;

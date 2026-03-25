@@ -137,30 +137,6 @@ void draw_arc(i32 x, i32 y, i32 r, rad from, rad to, col32 color) {
     }
 }
 
-i32 abs(i32 x) { return x < 0 ? -x : x; }
-
-void render_line(v2i from, v2i to, col32 color) {
-    i32 dx = to.x - from.x;
-    i32 dy = to.y - from.y;
-
-    i32 steps = abs(dx) > abs(dy) ? abs(dx) : abs(dy);
-    if (steps == 0) return;
-
-    f32 x_inc = (f32)dx / steps;
-    f32 y_inc = (f32)dy / steps;
-
-    f32 x = (f32)from.x;
-    f32 y = (f32)from.y;
-
-    for (i32 i = 0; i <= steps; i++) {
-        if ((i16)x >= 0 && (i16)x < G->screen_size.w && (i16)y >= 0 && (i16)y < G->screen_size.h) {
-            G->screen_buf[(i16)y * G->screen_size.w + (i16)x] = color;
-        }
-        x += x_inc;
-        y += y_inc;
-    }
-}
-
 void draw_text(char *text, i32 x, i32 y, col32 color) {
     if (G->draw_count == G->draw_size) return;
 
