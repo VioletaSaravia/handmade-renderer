@@ -3,7 +3,6 @@
 #include <winnt.h>
 
 #include "base.h"
-#include "base_win.h"
 
 typedef struct {
     cstr label, file;

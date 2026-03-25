@@ -1,5 +1,3 @@
-#include "engine.c" // TODO(violeta): Remove as dependency of game layer
-
 #include "base.c"
 
 export Info game = {
@@ -22,7 +20,7 @@ typedef i32 eid;
 
 struct Data {
     // Level
-    ArenaMark level;
+    ArenaSentinel level;
 
     // GUI
     col32 fg, bg, text_light, text_dark;

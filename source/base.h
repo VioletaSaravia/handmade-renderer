@@ -1,5 +1,9 @@
 #pragma once
+
+#include <libtcc/libtcc.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <windows.h>
 
 #define export __declspec(dllexport)
 #define import __declspec(dllimport)
@@ -71,11 +75,10 @@ void qsort(void *ptr, u64 count, u64 size, i32 (*comp)(const void *, const void 
         }                                         \
     } while (0);
 
-typedef float f32;
-typedef f32   rad;
-typedef f32   deg;
-
+typedef float  f32;
 typedef double f64;
+typedef f32    rad;
+typedef f32    deg;
 
 // 1.23.8 fixed point
 typedef i32 q8;
@@ -127,15 +130,16 @@ typedef q6 q32;
 #endif
 
 #define Q32(i32_val) ((q32)((i32_val) << Q_FRAC))
+#define Q32_TO_I32(q32_val) ((i32)(q32_val) >> Q_FRAC)
 #define Q32_FROM_F32(f32_val) ((q32)((f32_val) * (1 << Q_FRAC)))
 #define Q32_TO_F32(q32_val) ((f32)(q32_val) / (1 << Q_FRAC))
 #define Q32_FROM_I32(i32_val) ((q32)(i32_val) << Q_FRAC)
-#define Q32_TO_I32(q32_val) ((i32)(q32_val) >> Q_FRAC)
 
 #define Q32_FLOOR(q32_val) ((q32_val) & ~((1 << Q_FRAC) - 1))
 #define Q32_CEIL(q32_val) (((q32_val) + ((1 << Q_FRAC) - 1)) & ~((1 << Q_FRAC) - 1))
 #define Q32_ROUND(q32_val) (((q32_val) + (1 << (Q_FRAC - 1))) & ~((1 << Q_FRAC) - 1))
 #define Q32_FRAC(q32_val) ((q32_val) & ((1 << Q_FRAC) - 1))
+
 #define Q32_MUL(a, b) ((q32)(((i64)(a) * (i64)(b)) >> Q_FRAC))
 #define Q32_DIV(a, b) ((q32)(((i64)(a) << Q_FRAC) / (b)))
 
@@ -183,11 +187,6 @@ inline v2i v2i_add(v2i a, v2i b) {
 }
 
 inline i32 v2i_cross(v2i a, v2i b) { return a.y * b.x - a.x * b.y; }
-
-typedef struct Texture {
-    col32 *data;
-    v2i    size;
-} Texture;
 
 typedef union {
     q8 val[3];
@@ -237,9 +236,7 @@ inline v3 v3_mul(v3 a, v3 b) {
     };
 }
 
-inline q8 v3_dot(v3 a, v3 b) {
-    return q8_mul(a.x, b.x) + q8_mul(a.y, b.y) + q8_mul(a.z, b.z);
-}
+inline q8 v3_dot(v3 a, v3 b) { return q8_mul(a.x, b.x) + q8_mul(a.y, b.y) + q8_mul(a.z, b.z); }
 
 inline v3 v3_cross(v3 a, v3 b) {
     return (v3){
@@ -250,9 +247,7 @@ inline v3 v3_cross(v3 a, v3 b) {
 }
 
 v2 v3_project(v3 v) {
-    // Prevent division by zero: clamp z to a small minimum
-    q8 min_z = 1; // raw q8 value of 1/256, smallest positive
-    q8 z     = v.z > min_z ? v.z : min_z;
+    q8 z = v.z > 1 ? v.z : 1;
     return (v2){q8_div(v.x, z), q8_div(v.y, z)};
 }
 
@@ -318,59 +313,37 @@ v2 v2_screen(v2 v, v2i screen) {
 
 // Data
 
-typedef i32 ArenaMark;
-u8         *os_alloc(i32 size);
+u8 *os_alloc(i32 size);
 
+typedef i32 ArenaSentinel;
 typedef struct {
     void *data;
     i32   used, cap;
 } Arena;
 
-// TODO
-typedef struct GUICtx GUICtx;
-typedef struct Logger Logger;
+Arena arena_new(i32 cap, Arena *parent);
 
-typedef struct {
-    Arena   perm;
-    Arena   temp;
-    GUICtx *gui;
-    Logger *logger;
-} Context;
+u8 *alloc(i32 size, Arena *a);
 
-typedef struct EngineData EngineData;
-typedef struct Info       Info;
-
-Context    *ctx();
-EngineData *EG();
-
-u8 *alloc(i32 size, Arena *a) {
-    if (a->used + size > a->cap)
-        FATAL("Arena out of memory! Used: %d, Requested: %d, Capacity: %d", a->used, size, a->cap);
-
-    u8 *result = (u8 *)a->data + a->used;
-    a->used += size;
-    return result;
-}
-
-Arena arena_new(i32 cap, Arena *parent) {
-    u8 *data = parent ? alloc(cap, parent) : os_alloc(cap);
-    if (!data) return (Arena){0};
-
-    return (Arena){
-        .data = data,
-        .used = 0,
-        .cap  = cap,
-    };
-}
-
-ArenaMark arena_mark(Arena *a) { return a->used; }
-void   arena_reset(Arena *a, ArenaMark mark) { a->used = a->used >= mark ? mark : a->used; }
-u8    *alloc_perm(i32 size) { return alloc(size, &ctx()->perm); }
-u8    *alloc_temp(i32 size) { return alloc(size, &ctx()->temp); }
+ArenaSentinel arena_mark(Arena *a) { return a->used; }
+void arena_reset(Arena *a, ArenaSentinel mark) { a->used = a->used >= mark ? mark : a->used; }
+u8  *alloc_perm(i32 size);
+u8  *alloc_temp(i32 size);
 #define ALLOC(type) (type *)alloc_perm(sizeof(type))
 #define ALLOC_ARRAY(type, count) (type *)alloc_perm(sizeof(type) * (count))
 #define ALLOC_TEMP(type) (type *)alloc_temp(sizeof(type))
 #define ALLOC_TEMP_ARRAY(type, count) (type *)alloc_temp(sizeof(type) * (count))
+
+typedef struct EngineData EngineData;
+typedef struct Info       Info;
+
+typedef struct {
+    Arena perm;
+    Arena temp;
+} Context;
+
+Context    *ctx();
+EngineData *EG();
 
 typedef struct {
     u8 *text;
@@ -394,41 +367,7 @@ typedef struct {
     i32   faces_count;
 } Mesh;
 
-// Forward declare C stdlib parsing functions
-f32 strtof(cstr str, char **endptr) {
-    f32 result  = 0.0f;
-    f32 divisor = 1.0f;
-    i32 sign    = 1;
-
-    while (*str == ' ' || *str == '\t')
-        str++;
-
-    if (*str == '-') {
-        sign = -1;
-        str++;
-    } else if (*str == '+') {
-        str++;
-    }
-
-    while (*str >= '0' && *str <= '9') {
-        result = result * 10.0f + (*str - '0');
-        str++;
-    }
-
-    if (*str == '.') {
-        str++;
-        while (*str >= '0' && *str <= '9') {
-            divisor *= 10.0f;
-            result += (*str - '0') / divisor;
-            str++;
-        }
-    }
-
-    if (endptr) *endptr = (char *)str;
-    return sign * result;
-}
-
-i64 strtol(cstr, char **, i32);
+// Forward declare for TCC
 
 Mesh mesh_from_obj(Arena *a, cstr obj) {
     i32  vert_count = 0, uv_count = 0, face_count = 0;
@@ -455,8 +394,8 @@ Mesh mesh_from_obj(Arena *a, cstr obj) {
         .faces_count = face_count,
     };
 
-    ArenaMark temp_mark = arena_mark(&ctx()->temp);
-    v2    *uvs       = uv_count > 0 ? ALLOC_TEMP_ARRAY(v2, uv_count) : 0;
+    ArenaSentinel temp_mark = arena_mark(&ctx()->temp);
+    v2           *uvs       = uv_count > 0 ? ALLOC_TEMP_ARRAY(v2, uv_count) : 0;
 
     i32   vi  = 0;
     i32   uvi = 0;
@@ -470,18 +409,18 @@ Mesh mesh_from_obj(Arena *a, cstr obj) {
 
         if (p[0] == 'v' && p[1] == 't' && p[2] == ' ') {
             p += 3;
-            f32 u      = strtof(p, &end);
+            f32 u      = strtod(p, &end);
             p          = end;
-            f32 v      = strtof(p, &end);
+            f32 v      = strtod(p, &end);
             p          = end;
             uvs[uvi++] = (v2){q8_from_f32(u), q8_from_f32(v)};
         } else if (p[0] == 'v' && p[1] == ' ') {
             p += 2;
-            f32 x              = strtof(p, &end);
+            f32 x              = strtod(p, &end);
             p                  = end;
-            f32 y              = strtof(p, &end);
+            f32 y              = strtod(p, &end);
             p                  = end;
-            f32 z              = strtof(p, &end);
+            f32 z              = strtod(p, &end);
             p                  = end;
             result.verts[vi++] = (v3){q8_from_f32(x), q8_from_f32(y), q8_from_f32(z)};
         } else if (p[0] == 'f' && p[1] == ' ') {
@@ -585,6 +524,11 @@ rect col_rect_rect_area(rect a, rect b) {
 
 void draw_text(char *text, i32 x, i32 y, col32 color);
 
+typedef struct Texture {
+    col32 *data;
+    v2i    size;
+} Texture;
+
 typedef struct DrawTextureParams {
     v2i     pos;      // screen position
     i32rect src;      // [0, texture size]
@@ -598,24 +542,17 @@ void draw_texture_pro(Texture tex, DrawTextureParams params);
 void draw_rect(rect r, col32 color);
 void draw_rect_outline(rect r, col32 color);
 
-// GUI
-
-bool gui_button(char *name, q8 x, q8 y);
-bool gui_toggle(char *name, q8 x, q8 y, bool *val);
-
 // IO
 
 string file_read(char *path, Arena *a);
-i32    file_write(char *path, char *data);
+bool   file_write(char *path, string data);
 
-void *image_read(char *path);
-
-void log(const char *fmt, ...);
+typedef void *Image;
+Image         image_read(char *path);
 
 // Input
 
 // Physical key codes.
-// TODO: Map to logical keys.
 // Max value must be under `2^MOD_BITS_USED` to fit in KeyCombo.
 typedef enum Key {
     K_NONE = 0,
@@ -690,7 +627,7 @@ typedef enum { M_CONTROL = 1 << 31, M_SHIFT = 1 << 30, M_ALT = 1 << 29, M_COUNT 
 
 // `Key | ModKey`
 // Upper `M_COUNT` bits are modifiers, lower ones are for keys.
-typedef int KeyCombo;
+typedef i32 KeyCombo;
 
 typedef enum Action {
     A_NONE = 0,
@@ -720,4 +657,182 @@ typedef struct {
     v3n look_at; // TODO(violeta)
 } Camera;
 
-Camera* cam();
+Camera *cam();
+
+typedef struct Metrics    Metrics;
+typedef struct SystemInfo SystemInfo;
+
+typedef enum {
+    DCT_RECT,
+    DCT_RECT_OUTLINE,
+    DCT_TEXT,
+    DCT_LINE,
+    DCT_MESH_WIREFRAME,
+    DCT_MESH_SOLID,
+    DCT_MODEL,
+    DCT_TEXTURE_2D,
+    DCT_COUNT
+} DrawCmdType;
+
+typedef struct DrawCmd {
+    DrawCmdType t;
+
+    union {
+        struct { // text
+            col32 color;
+            char *text;
+            i32   x, y;
+        };
+
+        struct { // rect
+            col32 color;
+            rect  r;
+        };
+
+        struct { // line
+            col32 color;
+            v2    from, to;
+        };
+
+        struct { // 2d texture
+            Texture          *texture;
+            DrawTextureParams params;
+        };
+
+        struct { // model
+            col32 *tex;
+            v2i    tex_size;
+            v3    *vertices;
+            i32    count;
+            Face  *faces;
+            i32    faces_count;
+            m3     transform;
+        };
+
+        struct { // mesh
+            col32 color;
+            v3   *vertices;
+            i32   count;
+            v2i  *edges;
+            i32   edges_count;
+            m3    transform;
+        };
+    };
+} DrawCmd;
+
+struct Info {
+    cstr     name;
+    cstr     version;
+    KeyCombo keybinds[A_COUNT][2];
+};
+
+struct Metrics {
+    bool  initialized;
+    void *processHandle;
+};
+
+typedef struct {
+    TCCState *tcc;
+
+    void (*init)();
+    Info *info;
+    void (*update)(q8 dt);
+    void (*quit)();
+    i32 (*gamedata_size)();
+    FILETIME last_write;
+
+} GameDLL;
+
+struct SystemInfo {
+    // System
+    cstr processorArchitecture;
+    u32  numberOfProcessors;
+    u32  pageSize;
+    u32  allocationGranularity;
+    f64  cpuFreq;
+
+    // Memory
+    u64 totalPhys;
+    u64 availPhys;
+    u64 totalVirtual;
+    u64 availVirtual;
+
+    // OS
+    u32 majorVersion;
+    u32 minorVersion;
+    u32 buildNumber;
+    u32 platformId;
+
+    // GPU
+    cstr gpuName;
+    cstr gpuVendor;
+    cstr glVersion;
+};
+
+#include "profiler.h"
+
+struct EngineData {
+    Context ctx;
+    GameDLL game;
+    u8     *game_memory;
+
+    Camera          cam;
+    bool            shutdown;
+    f32             dt;
+    f32             target_dt;
+    f64             next_frame;
+    MSG             msg;
+    LARGE_INTEGER   freq;
+    WINDOWPLACEMENT prev_placement;
+    v2              mouse_pos;
+    KeyState        keys[K_COUNT];
+    v2i             screen_size;
+    u32            *screen_buf;
+    DrawCmd        *draw_queue;
+    u32             draw_size, draw_count;
+    HWND            hwnd;
+    Metrics         metrics;
+    SystemInfo      system_info;
+    Profiler        profiler;
+    LoopProfiler    loop_profiler;
+    Texture         default_texture;
+};
+
+#undef EXPORT
+#define EXPORT extern "C" __declspec(dllexport)
+
+typedef struct {
+    u32 cb;
+    u32 PageFaultCount;
+    u64 PeakWorkingSetSize;
+    u64 WorkingSetSize;
+    u64 QuotaPeakPagedPoolUsage;
+    u64 QuotaPagedPoolUsage;
+    u64 QuotaPeakNonPagedPoolUsage;
+    u64 QuotaNonPagedPoolUsage;
+    u64 PagefileUsage;
+    u64 PeakPagefileUsage;
+    u64 PrivateUsage;
+} MY_PROCESS_MEMORY_COUNTERS_EX;
+
+import BOOL __stdcall K32GetProcessMemoryInfo(HANDLE, MY_PROCESS_MEMORY_COUNTERS_EX *, u32);
+import BOOL __stdcall GlobalMemoryStatusEx(MEMORYSTATUSEX *);
+
+internal f64        now_seconds();
+internal Metrics    metrics_init();
+internal u64        get_page_fault_count(Metrics);
+internal u64        estimate_cpu_freq();
+internal u64        read_cpu_timer();
+internal inline i64 read_acquire(volatile i64 *src);
+
+internal SystemInfo systeminfo_init();
+internal void       systeminfo_print(SystemInfo info);
+
+internal bool get_last_write_time(const char *filename, FILETIME *outTime);
+internal void fullscreen_window(HWND hWnd);
+internal void center_window(HWND hWnd);
+
+internal void render_line(v2i from, v2i to, col32 color);
+internal void render_filled_triangle(v2i p0, v2i p1, v2i p2, col32 color);
+internal void render_textured_triangle(v2i p0, v2i p1, v2i p2, uv t0, uv t1, uv t2, v3 z,
+                                       col32 *tex, v2i tex_size);
