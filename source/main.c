@@ -249,12 +249,12 @@ internal void render_filled_triangle(v2i p0, v2i p1, v2i p2, col32 color) {
         i32  segment_height = second_half ? (p2.y - p1.y) : (p1.y - p0.y);
         if (segment_height == 0) continue;
 
-        q8 alpha = Q8(y - p0.y) / total_height;
-        q8 beta  = second_half ? Q8(y - p1.y) / segment_height : Q8(y - p0.y) / segment_height;
+        q32 alpha = Q32(y - p0.y) / total_height;
+        q32 beta  = second_half ? Q32(y - p1.y) / segment_height : Q32(y - p0.y) / segment_height;
 
-        i32 xa = p0.x + q8_to_i32((p2.x - p0.x) * alpha);
-        i32 xb = second_half ? p1.x + q8_to_i32((p2.x - p1.x) * beta)
-                             : p0.x + q8_to_i32((p1.x - p0.x) * beta);
+        i32 xa = p0.x + q32_to_i32((p2.x - p0.x) * alpha);
+        i32 xb = second_half ? p1.x + q32_to_i32((p2.x - p1.x) * beta)
+                             : p0.x + q32_to_i32((p1.x - p0.x) * beta);
 
         if (xa > xb) {
             i32 tmp = xa;
@@ -282,7 +282,7 @@ internal void render_textured_triangle(v2i p0, v2i p1, v2i p2, uv t0, uv t1, uv 
         uv tt    = t0;
         t0       = t1;
         t1       = tt;
-        q8 tz    = z.val[0];
+        q32 tz    = z.val[0];
         z.val[0] = z.val[1];
         z.val[1] = tz;
     }
@@ -293,7 +293,7 @@ internal void render_textured_triangle(v2i p0, v2i p1, v2i p2, uv t0, uv t1, uv 
         uv tt    = t0;
         t0       = t2;
         t2       = tt;
-        q8 tz    = z.val[0];
+        q32 tz    = z.val[0];
         z.val[0] = z.val[2];
         z.val[2] = tz;
     }
@@ -304,7 +304,7 @@ internal void render_textured_triangle(v2i p0, v2i p1, v2i p2, uv t0, uv t1, uv 
         uv tt    = t1;
         t1       = t2;
         t2       = tt;
-        q8 tz    = z.val[1];
+        q32 tz    = z.val[1];
         z.val[1] = z.val[2];
         z.val[2] = tz;
     }
@@ -312,15 +312,15 @@ internal void render_textured_triangle(v2i p0, v2i p1, v2i p2, uv t0, uv t1, uv 
     i32 total_height = p2.y - p0.y;
     if (total_height == 0) return;
 
-    // Pre-compute 1/z in Q8: Q8(1) / z = 256 / z
-    q8 inv_z0 = z.val[0] != 0 ? Q8(1) * Q8(1) / z.val[0] : 0;
-    q8 inv_z1 = z.val[1] != 0 ? Q8(1) * Q8(1) / z.val[1] : 0;
-    q8 inv_z2 = z.val[2] != 0 ? Q8(1) * Q8(1) / z.val[2] : 0;
+    // Pre-compute 1/z in Q32: Q32(1) / z = 256 / z
+    q32 inv_z0 = z.val[0] != 0 ? Q32(1) * Q32(1) / z.val[0] : 0;
+    q32 inv_z1 = z.val[1] != 0 ? Q32(1) * Q32(1) / z.val[1] : 0;
+    q32 inv_z2 = z.val[2] != 0 ? Q32(1) * Q32(1) / z.val[2] : 0;
 
-    // u/z, v/z in Q8
-    q8 u0z = q8_mul(t0.u, inv_z0), v0z = q8_mul(t0.v, inv_z0);
-    q8 u1z = q8_mul(t1.u, inv_z1), v1z = q8_mul(t1.v, inv_z1);
-    q8 u2z = q8_mul(t2.u, inv_z2), v2z = q8_mul(t2.v, inv_z2);
+    // u/z, v/z in Q32
+    q32 u0z = q32_mul(t0.u, inv_z0), v0z = q32_mul(t0.v, inv_z0);
+    q32 u1z = q32_mul(t1.u, inv_z1), v1z = q32_mul(t1.v, inv_z1);
+    q32 u2z = q32_mul(t2.u, inv_z2), v2z = q32_mul(t2.v, inv_z2);
 
     for (i32 y = p0.y; y <= p2.y; y++) {
         if (y < 0 || y >= EG()->screen_size.h) continue;
@@ -329,36 +329,36 @@ internal void render_textured_triangle(v2i p0, v2i p1, v2i p2, uv t0, uv t1, uv 
         i32  segment_height = second_half ? (p2.y - p1.y) : (p1.y - p0.y);
         if (segment_height == 0) continue;
 
-        // alpha = (y - p0.y) / total_height, beta similarly, as Q8
-        q8 alpha = Q8(y - p0.y) / total_height;
-        q8 beta  = second_half ? Q8(y - p1.y) / segment_height : Q8(y - p0.y) / segment_height;
+        // alpha = (y - p0.y) / total_height, beta similarly, as Q32
+        q32 alpha = Q32(y - p0.y) / total_height;
+        q32 beta  = second_half ? Q32(y - p1.y) / segment_height : Q32(y - p0.y) / segment_height;
 
         // Interpolate x
-        i32 xa = p0.x + q8_to_i32((p2.x - p0.x) * alpha);
-        i32 xb = second_half ? p1.x + q8_to_i32((p2.x - p1.x) * beta)
-                             : p0.x + q8_to_i32((p1.x - p0.x) * beta);
+        i32 xa = p0.x + q32_to_i32((p2.x - p0.x) * alpha);
+        i32 xb = second_half ? p1.x + q32_to_i32((p2.x - p1.x) * beta)
+                             : p0.x + q32_to_i32((p1.x - p0.x) * beta);
 
         // Interpolate u/z, v/z, 1/z along edges
-        q8 uza = u0z + q8_mul(u2z - u0z, alpha);
-        q8 vza = v0z + q8_mul(v2z - v0z, alpha);
-        q8 iza = inv_z0 + q8_mul(inv_z2 - inv_z0, alpha);
+        q32 uza = u0z + q32_mul(u2z - u0z, alpha);
+        q32 vza = v0z + q32_mul(v2z - v0z, alpha);
+        q32 iza = inv_z0 + q32_mul(inv_z2 - inv_z0, alpha);
 
-        q8 uzb, vzb, izb;
+        q32 uzb, vzb, izb;
         if (second_half) {
-            uzb = u1z + q8_mul(u2z - u1z, beta);
-            vzb = v1z + q8_mul(v2z - v1z, beta);
-            izb = inv_z1 + q8_mul(inv_z2 - inv_z1, beta);
+            uzb = u1z + q32_mul(u2z - u1z, beta);
+            vzb = v1z + q32_mul(v2z - v1z, beta);
+            izb = inv_z1 + q32_mul(inv_z2 - inv_z1, beta);
         } else {
-            uzb = u0z + q8_mul(u1z - u0z, beta);
-            vzb = v0z + q8_mul(v1z - v0z, beta);
-            izb = inv_z0 + q8_mul(inv_z1 - inv_z0, beta);
+            uzb = u0z + q32_mul(u1z - u0z, beta);
+            vzb = v0z + q32_mul(v1z - v0z, beta);
+            izb = inv_z0 + q32_mul(inv_z1 - inv_z0, beta);
         }
 
         if (xa > xb) {
             i32 tmp = xa;
             xa      = xb;
             xb      = tmp;
-            q8 tq   = uza;
+            q32 tq   = uza;
             uza     = uzb;
             uzb     = tq;
             tq      = vza;
@@ -375,19 +375,19 @@ internal void render_textured_triangle(v2i p0, v2i p1, v2i p2, uv t0, uv t1, uv 
         i32 x_end   = xb >= EG()->screen_size.w ? EG()->screen_size.w - 1 : xb;
 
         for (i32 x = x_start; x <= x_end; x++) {
-            // t = (x - xa) / span as Q8
-            q8 t = span == 0 ? 0 : Q8(x - xa) / span;
+            // t = (x - xa) / span as Q32
+            q32 t = span == 0 ? 0 : Q32(x - xa) / span;
 
-            q8 inv_zp = iza + q8_mul(izb - iza, t);
-            q8 uzp    = uza + q8_mul(uzb - uza, t);
-            q8 vzp    = vza + q8_mul(vzb - vza, t);
+            q32 inv_zp = iza + q32_mul(izb - iza, t);
+            q32 uzp    = uza + q32_mul(uzb - uza, t);
+            q32 vzp    = vza + q32_mul(vzb - vza, t);
 
             // Recover perspective-correct u, v: u = (u/z) / (1/z)
-            q8 tex_u = inv_zp != 0 ? q8_div(uzp, inv_zp) : 0;
-            q8 tex_v = inv_zp != 0 ? q8_div(vzp, inv_zp) : 0;
+            q32 tex_u = inv_zp != 0 ? q32_div(uzp, inv_zp) : 0;
+            q32 tex_v = inv_zp != 0 ? q32_div(vzp, inv_zp) : 0;
 
-            i32 tx = q8_to_i32(q8_mul(tex_u, Q8(tex_size.w - 1))) & (tex_size.w - 1);
-            i32 ty = q8_to_i32(q8_mul(tex_v, Q8(tex_size.h - 1))) & (tex_size.h - 1);
+            i32 tx = q32_to_i32(q32_mul(tex_u, Q32(tex_size.w - 1))) & (tex_size.w - 1);
+            i32 ty = q32_to_i32(q32_mul(tex_v, Q32(tex_size.h - 1))) & (tex_size.h - 1);
 
             EG()->screen_buf[y * EG()->screen_size.w + x] = tex[ty * tex_size.w + tx];
         }
@@ -400,8 +400,8 @@ static int sort_draw_cmd_by_distance(const void *a, const void *b) {
     const DrawCmd *da = (const DrawCmd *)a;
     const DrawCmd *db = (const DrawCmd *)b;
 
-    q8 za = v3_add(da->transform.pos, cam()->pos).z;
-    q8 zb = v3_add(db->transform.pos, cam()->pos).z;
+    q32 za = v3_add(da->transform.pos, cam()->pos).z;
+    q32 zb = v3_add(db->transform.pos, cam()->pos).z;
 
     if (zb > za) return 1;
     if (zb < za) return -1;
@@ -712,8 +712,8 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
                 case WM_MOUSEMOVE:
                     G->mouse_pos = (v2){
-                        .x = Q8(G->msg.lParam & 0xFFFF),
-                        .y = Q8((G->msg.lParam >> 16) & 0xFFFF),
+                        .x = Q32(G->msg.lParam & 0xFFFF),
+                        .y = Q32((G->msg.lParam >> 16) & 0xFFFF),
                     };
                     break;
 
@@ -730,7 +730,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
         }
 
         LOOP_BLOCK("Game Update");
-        G->game.update((q8)(G->dt * 256.0f));
+        G->game.update((q32)(G->dt * 256.0f));
         LOOP_BLOCK_END();
 
         // Rendering
@@ -759,7 +759,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                 }
                 case DCT_MESH_SOLID: {
                     v2i *screen_verts  = (v2i *)alloc_temp(sizeof(v2i) * next.count);
-                    q8  *transformed_z = (q8 *)alloc_temp(sizeof(q8) * next.count);
+                    q32  *transformed_z = (q32 *)alloc_temp(sizeof(q32) * next.count);
                     for (i32 v = 0; v < next.count; v++) {
                         v3 n = v3_mul(next.vertices[v], next.transform.scale);
                         n    = v3_rotate_xz(n, next.transform.rot.y);
@@ -793,7 +793,7 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                 }
                 case DCT_MODEL: {
                     v2i *screen_verts  = ALLOC_TEMP_ARRAY(v2i, next.count);
-                    q8  *transformed_z = ALLOC_TEMP_ARRAY(q8, next.count);
+                    q32  *transformed_z = ALLOC_TEMP_ARRAY(q32, next.count);
                     for (i32 v = 0; v < next.count; v++) {
                         v3 n = v3_mul(next.vertices[v], next.transform.scale);
                         n    = v3_rotate_xz(n, next.transform.rot.y);
@@ -830,10 +830,10 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                 }
                 case DCT_RECT: {
                     next.r = (rect){
-                        .x = q8_to_i32(next.r.x),
-                        .y = q8_to_i32(next.r.y),
-                        .w = q8_to_i32(next.r.w),
-                        .h = q8_to_i32(next.r.h),
+                        .x = q32_to_i32(next.r.x),
+                        .y = q32_to_i32(next.r.y),
+                        .w = q32_to_i32(next.r.w),
+                        .h = q32_to_i32(next.r.h),
                     };
                     for (i32 y_coord = next.r.y; y_coord < next.r.y + next.r.h; y_coord++) {
                         for (i32 x_coord = next.r.x; x_coord < next.r.x + next.r.w; x_coord++) {
@@ -858,8 +858,8 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                                             ? tex->size
                                             : next.params.src.size;
 
-                    v2 ratio = (v2){q8_div(Q8(in_size.x), Q8(out_size.x)),
-                                    q8_div(Q8(in_size.y), Q8(out_size.y))};
+                    v2 ratio = (v2){q32_div(Q32(in_size.x), Q32(out_size.x)),
+                                    q32_div(Q32(in_size.y), Q32(out_size.y))};
 
                     for (i32 y = 0; y < out_size.y; y++) {
                         for (i32 x = 0; x < out_size.x; x++) {
@@ -871,8 +871,8 @@ i32 APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                             }
 
                             i32 screen_idx  = screen_pos.y * G->screen_size.w + screen_pos.x;
-                            v2i tex_coord   = (v2i){q8_to_i32(q8_mul(Q8(x), ratio.x)),
-                                                    q8_to_i32(q8_mul(Q8(y), ratio.y))};
+                            v2i tex_coord   = (v2i){q32_to_i32(q32_mul(Q32(x), ratio.x)),
+                                                    q32_to_i32(q32_mul(Q32(y), ratio.y))};
                             i32 texture_idx = tex_coord.y * tex->size.x + tex_coord.x;
 
                             G->screen_buf[screen_idx] = tex->data[texture_idx];

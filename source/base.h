@@ -130,31 +130,31 @@ typedef q6 q32;
 #endif
 
 #define Q32(i32_val) ((q32)((i32_val) << Q_FRAC))
-#define Q32_TO_I32(q32_val) ((i32)(q32_val) >> Q_FRAC)
-#define Q32_FROM_F32(f32_val) ((q32)((f32_val) * (1 << Q_FRAC)))
-#define Q32_TO_F32(q32_val) ((f32)(q32_val) / (1 << Q_FRAC))
-#define Q32_FROM_I32(i32_val) ((q32)(i32_val) << Q_FRAC)
+#define q32_to_i32(q32_val) ((i32)(q32_val) >> Q_FRAC)
+#define q32_from_f32(f32_val) ((q32)((f32_val) * (1 << Q_FRAC)))
+#define q32_to_f32(q32_val) ((f32)(q32_val) / (1 << Q_FRAC))
+#define q32_from_i32(i32_val) ((q32)(i32_val) << Q_FRAC)
 
-#define Q32_FLOOR(q32_val) ((q32_val) & ~((1 << Q_FRAC) - 1))
-#define Q32_CEIL(q32_val) (((q32_val) + ((1 << Q_FRAC) - 1)) & ~((1 << Q_FRAC) - 1))
-#define Q32_ROUND(q32_val) (((q32_val) + (1 << (Q_FRAC - 1))) & ~((1 << Q_FRAC) - 1))
-#define Q32_FRAC(q32_val) ((q32_val) & ((1 << Q_FRAC) - 1))
+#define q32_floor(q32_val) ((q32_val) & ~((1 << Q_FRAC) - 1))
+#define q32_ceil(q32_val) (((q32_val) + ((1 << Q_FRAC) - 1)) & ~((1 << Q_FRAC) - 1))
+#define q32_round(q32_val) (((q32_val) + (1 << (Q_FRAC - 1))) & ~((1 << Q_FRAC) - 1))
+#define q32_frac(q32_val) ((q32_val) & ((1 << Q_FRAC) - 1))
 
-#define Q32_MUL(a, b) ((q32)(((i64)(a) * (i64)(b)) >> Q_FRAC))
-#define Q32_DIV(a, b) ((q32)(((i64)(a) << Q_FRAC) / (b)))
+#define q32_mul(a, b) ((q32)(((i64)(a) * (i64)(b)) >> Q_FRAC))
+#define q32_div(a, b) ((q32)(((i64)(a) << Q_FRAC) / (b)))
 
-#define Q32_PI (Q32_FROM_F32(3.14159265358979f))
-#define Q32_TAU (Q32_FROM_F32(6.28318530717958f))
+#define Q32_PI (q32_from_f32(3.14159265358979f))
+#define Q32_TAU (q32_from_f32(6.28318530717958f))
 
 typedef union {
     struct {
-        q8 x, y;
+        q32 x, y;
     };
     struct {
-        q8 w, h;
+        q32 w, h;
     };
     struct {
-        q8 u, v;
+        q32 u, v;
     };
 } v2;
 
@@ -174,8 +174,8 @@ typedef union {
 
 inline v2i v2i_from_v2(v2 v) {
     return (v2i){
-        .x = q8_to_i32(v.x),
-        .y = q8_to_i32(v.y),
+        .x = q32_to_i32(v.x),
+        .y = q32_to_i32(v.y),
     };
 }
 
@@ -189,12 +189,12 @@ inline v2i v2i_add(v2i a, v2i b) {
 inline i32 v2i_cross(v2i a, v2i b) { return a.y * b.x - a.x * b.y; }
 
 typedef union {
-    q8 val[3];
+    q32 val[3];
     struct {
-        q8 x, y, z;
+        q32 x, y, z;
     };
     struct {
-        q8 r, g, b;
+        q32 r, g, b;
     };
 } v3;
 
@@ -230,27 +230,28 @@ inline v3 v3_sub(v3 a, v3 b) {
 
 inline v3 v3_mul(v3 a, v3 b) {
     return (v3){
-        .x = q8_mul(a.x, b.x),
-        .y = q8_mul(a.y, b.y),
-        .z = q8_mul(a.z, b.z),
+        .x = q32_mul(a.x, b.x),
+        .y = q32_mul(a.y, b.y),
+        .z = q32_mul(a.z, b.z),
     };
 }
 
-inline q8 v3_dot(v3 a, v3 b) { return q8_mul(a.x, b.x) + q8_mul(a.y, b.y) + q8_mul(a.z, b.z); }
+inline q32 v3_dot(v3 a, v3 b) { return q32_mul(a.x, b.x) + q32_mul(a.y, b.y) + q32_mul(a.z, b.z); }
 
 inline v3 v3_cross(v3 a, v3 b) {
     return (v3){
-        .x = q8_mul(a.y, b.z) - q8_mul(a.z, b.y),
-        .y = q8_mul(a.z, b.x) - q8_mul(a.x, b.z),
-        .z = q8_mul(a.x, b.y) - q8_mul(a.y, b.x),
+        .x = q32_mul(a.y, b.z) - q32_mul(a.z, b.y),
+        .y = q32_mul(a.z, b.x) - q32_mul(a.x, b.z),
+        .z = q32_mul(a.x, b.y) - q32_mul(a.y, b.x),
     };
 }
 
 v2 v3_project(v3 v) {
-    q8 z = v.z > 1 ? v.z : 1;
-    return (v2){q8_div(v.x, z), q8_div(v.y, z)};
+    q32 z = v.z > 1 ? v.z : 1;
+    return (v2){q32_div(v.x, z), q32_div(v.y, z)};
 }
 
+#if Q_FRAC == 8
 // 64-entry sine table for one quadrant [0, PI/2], in q8 format.
 // sin_table[i] = sin(i * (PI/2) / 64) * 256
 static const i16 sin_table[65] = {
@@ -259,24 +260,34 @@ static const i16 sin_table[65] = {
     189, 193, 197, 201, 205, 209, 212, 216, 219, 222, 225, 228, 231, 234, 236, 238, 241,
     243, 244, 246, 248, 249, 251, 252, 253, 254, 254, 255, 255, 256, 256,
 };
+#elif Q_FRAC == 6
+// 64-entry sine table for one quadrant [0, PI/2], in q6 format.
+// sin_table[i] = sin(i * (PI/2) / 64) * 64
+static const i16 sin_table[65] = {
+    0,   3,   6,   9,   12,  15,  18,  21,  24,  27,  30,  33,  36,  39,  42,  45,  48,  51,
+    54,  57,  60,  63,  66,  69,  72,  75,  78,  81,  84,  87,  90,  93,  96,  99,  102, 105,
+    108, 111, 114, 117, 120, 123, 126, 129, 132, 135, 138, 141, 144, 147, 150, 153, 156, 159,
+    162, 165, 168, 171, 174, 177, 180, 183, 186, 189, 192, 195, 198, 201, 204,
+};
+#endif
 
-q8 q8_sin(q8 angle) {
+q32 q32_sin(q32 angle) {
     // Normalize to [0, TAU)
     while (angle < 0)
-        angle += Q8_TAU;
-    while (angle >= Q8_TAU)
-        angle -= Q8_TAU;
+        angle += Q32_TAU;
+    while (angle >= Q32_TAU)
+        angle -= Q32_TAU;
 
     // Quarter: 0=[0,PI/2), 1=[PI/2,PI), 2=[PI,3PI/2), 3=[3PI/2,TAU)
-    q8  quarter_period = Q8_TAU / 4; // 402
+    q32 quarter_period = Q32_TAU / 4; // 402
     i32 quadrant       = angle / quarter_period;
-    q8  remainder      = angle % quarter_period;
+    q32 remainder      = angle % quarter_period;
 
     // Map remainder to table index [0, 64]
     i32 idx = (i32)remainder * 64 / quarter_period;
     if (idx > 64) idx = 64;
 
-    q8 val;
+    q32 val;
     switch (quadrant) {
     case 0: val = sin_table[idx]; break;
     case 1: val = sin_table[64 - idx]; break;
@@ -287,27 +298,27 @@ q8 q8_sin(q8 angle) {
     return val;
 }
 
-q8 q8_cos(q8 angle) { return q8_sin(angle + Q8_TAU / 4); }
+q32 q32_cos(q32 angle) { return q32_sin(angle + Q32_TAU / 4); }
 
-v3 v3_rotate_xz(v3 v, q8 angle) {
-    q8 cos_a = q8_cos(angle);
-    q8 sin_a = q8_sin(angle);
+v3 v3_rotate_xz(v3 v, q32 angle) {
+    q32 cos_a = q32_cos(angle);
+    q32 sin_a = q32_sin(angle);
 
     return (v3){
-        .x = q8_mul(v.x, cos_a) - q8_mul(v.z, sin_a),
+        .x = q32_mul(v.x, cos_a) - q32_mul(v.z, sin_a),
         .y = v.y,
-        .z = q8_mul(v.x, sin_a) + q8_mul(v.z, cos_a),
+        .z = q32_mul(v.x, sin_a) + q32_mul(v.z, cos_a),
     };
 }
 
 v2 v2_screen(v2 v, v2i screen) {
     // Correct for aspect ratio: use height for both axes to maintain square pixels,
     // then center horizontally.
-    q8 half_w = Q8(screen.w) >> 1;
-    q8 half_h = Q8(screen.h) >> 1;
+    q32 half_w = Q32(screen.w) >> 1;
+    q32 half_h = Q32(screen.h) >> 1;
     return (v2){
-        .x = q8_mul(v.x, half_h) + half_w,
-        .y = q8_mul(v.y, half_h) + half_h,
+        .x = q32_mul(v.x, half_h) + half_w,
+        .y = q32_mul(v.y, half_h) + half_h,
     };
 }
 
@@ -357,7 +368,7 @@ char *string_format(Arena *a, char *fmt, ...);
 
 typedef struct {
     i32 a, b, c;       // vertex indices
-    v2  uva, uvb, uvc; // [0, Q8(1)]
+    v2  uva, uvb, uvc; // [0, Q32(1)]
 } Face;
 
 typedef struct {
@@ -413,7 +424,7 @@ Mesh mesh_from_obj(Arena *a, cstr obj) {
             p          = end;
             f32 v      = strtod(p, &end);
             p          = end;
-            uvs[uvi++] = (v2){q8_from_f32(u), q8_from_f32(v)};
+            uvs[uvi++] = (v2){q32_from_f32(u), q32_from_f32(v)};
         } else if (p[0] == 'v' && p[1] == ' ') {
             p += 2;
             f32 x              = strtod(p, &end);
@@ -422,7 +433,7 @@ Mesh mesh_from_obj(Arena *a, cstr obj) {
             p                  = end;
             f32 z              = strtod(p, &end);
             p                  = end;
-            result.verts[vi++] = (v3){q8_from_f32(x), q8_from_f32(y), q8_from_f32(z)};
+            result.verts[vi++] = (v3){q32_from_f32(x), q32_from_f32(y), q32_from_f32(z)};
         } else if (p[0] == 'f' && p[1] == ' ') {
             p += 2;
             i32 idx[3]    = {0};
@@ -467,23 +478,24 @@ Mesh mesh_from_obj(Arena *a, cstr obj) {
 }
 
 typedef union {
-    q8 val[3][3];
+    q32 val[3][3];
 
     struct { // 3d transform
         v3 pos, rot, scale;
     };
 } m3;
 
-typedef q8 m4[4][4];
+typedef q32 m4[4][4];
 
-const global m3 m3_id = {.val = {{Q8(1), 0, 0}, {0, Q8(1), 0}, {0, 0, Q8(1)}}};
-const global m4 m4_id = {{Q8(1), 0, 0, 0}, {0, Q8(1), 0, 0}, {0, 0, Q8(1), 0}, {0, 0, 0, Q8(1)}};
+const global m3 m3_id = {.val = {{Q32(1), 0, 0}, {0, Q32(1), 0}, {0, 0, Q32(1)}}};
+const global m4 m4_id = {
+    {Q32(1), 0, 0, 0}, {0, Q32(1), 0, 0}, {0, 0, Q32(1), 0}, {0, 0, 0, Q32(1)}};
 
 // Collision
 
 typedef union rect {
     struct {
-        q8 x, y, w, h;
+        q32 x, y, w, h;
     };
     struct {
         v2 pos, size;
@@ -533,7 +545,7 @@ typedef struct DrawTextureParams {
     v2i     pos;      // screen position
     i32rect src;      // [0, texture size]
     i32rect dst;      // [0, screen size]
-    q8      rotation; // [0, TAU)
+    q32     rotation; // [0, TAU)
     col32   tint;
 } DrawTextureParams;
 
@@ -736,7 +748,7 @@ typedef struct {
 
     void (*init)();
     Info *info;
-    void (*update)(q8 dt);
+    void (*update)(q32 dt);
     void (*quit)();
     i32 (*gamedata_size)();
     FILETIME last_write;

@@ -164,23 +164,23 @@ char *string_format(Arena *a, char *fmt, ...) {
     return result;
 }
 
-bool gui_button(char *name, q8 x, q8 y) {
-    rect  r     = {x, y, Q8(60), Q8(20)};
+bool gui_button(char *name, q32 x, q32 y) {
+    rect  r     = {x, y, Q32(60), Q32(20)};
     bool  col   = col_point_rect(G->mouse_pos, r);
     col32 color = col ? rgb(100, 100, 100) : rgb(30, 30, 30);
 
     draw_rect(r, color);
-    draw_text(name, q8_to_i32(x), q8_to_i32(y), rgb(250, 250, 250));
+    draw_text(name, q32_to_i32(x), q32_to_i32(y), rgb(250, 250, 250));
 
     return G->keys[K_MOUSE_LEFT] == KS_JUST_PRESSED && col;
 }
 
-bool gui_toggle(char *name, q8 x, q8 y, bool *val) {
-    rect  r     = {x, y, Q8(60), Q8(20)};
+bool gui_toggle(char *name, q32 x, q32 y, bool *val) {
+    rect  r     = {x, y, Q32(60), Q32(20)};
     col32 color = *val ? rgb(100, 100, 100) : rgb(30, 30, 30);
 
     draw_rect(r, color);
-    draw_text(name, q8_to_i32(x), q8_to_i32(y), rgb(250, 250, 250));
+    draw_text(name, q32_to_i32(x), q32_to_i32(y), rgb(250, 250, 250));
 
     bool pressed = G->keys[K_MOUSE_LEFT] == KS_JUST_PRESSED && col_point_rect(G->mouse_pos, r);
     if (pressed) *val ^= true;
