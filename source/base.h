@@ -324,9 +324,9 @@ v2 v2_screen(v2 v, v2i screen) {
 
 // Data
 
-u8 *os_alloc(i32 size);
+u8  *os_alloc(i32 size);
+void os_free(u8 *ptr);
 
-typedef i32 ArenaSentinel;
 typedef struct {
     void *data;
     i32   used, cap;
@@ -336,8 +336,8 @@ Arena arena_new(i32 cap, Arena *parent);
 
 u8 *alloc(i32 size, Arena *a);
 
-ArenaSentinel arena_mark(Arena *a) { return a->used; }
-void arena_reset(Arena *a, ArenaSentinel mark) { a->used = a->used >= mark ? mark : a->used; }
+i32  arena_mark(Arena *a) { return a->used; }
+void arena_reset(Arena *a, i32 mark) { a->used = a->used >= mark ? mark : a->used; }
 u8  *alloc_perm(i32 size);
 u8  *alloc_temp(i32 size);
 #define ALLOC(type) (type *)alloc_perm(sizeof(type))
@@ -353,7 +353,9 @@ typedef struct {
     Arena temp;
 } Context;
 
-Context    *ctx();
+Context *ctx();
+#define PERM (&ctx()->perm)
+#define TEMP (&ctx()->temp)
 EngineData *EG();
 
 typedef struct {
@@ -362,7 +364,10 @@ typedef struct {
 } string;
 
 char *string_format(Arena *a, char *fmt, ...);
-#define STR(str) (string){.text = str, .len = sizeof(str) - 1}
+#define STR(str) (string){.text = (u8 *)str, .len = sizeof(str) - 1}
+
+bool gui_button(char *name, q32 x, q32 y);
+bool gui_toggle(char *name, q32 x, q32 y, bool *val);
 
 // 3D
 
@@ -378,11 +383,9 @@ typedef struct {
     i32   faces_count;
 } Mesh;
 
-// Forward declare for TCC
-
-Mesh mesh_from_obj(Arena *a, cstr obj) {
+Mesh mesh_from_obj(string obj, Arena *a) {
     i32  vert_count = 0, uv_count = 0, face_count = 0;
-    cstr p = obj;
+    cstr p = (cstr)obj.text;
     while (*p) {
         while (*p == ' ' || *p == '\t')
             p++;
@@ -405,15 +408,14 @@ Mesh mesh_from_obj(Arena *a, cstr obj) {
         .faces_count = face_count,
     };
 
-    ArenaSentinel temp_mark = arena_mark(&ctx()->temp);
-    v2           *uvs       = uv_count > 0 ? ALLOC_TEMP_ARRAY(v2, uv_count) : 0;
+    v2 *uvs = uv_count > 0 ? (v2 *)os_alloc(sizeof(v2) * uv_count) : 0;
 
     i32   vi  = 0;
     i32   uvi = 0;
     i32   fi  = 0;
     char *end = '\0';
 
-    p = obj;
+    p = (cstr)obj.text;
     while (*p) {
         while (*p == ' ' || *p == '\t')
             p++;
@@ -473,7 +475,7 @@ Mesh mesh_from_obj(Arena *a, cstr obj) {
         if (*p == '\n') p++;
     }
 
-    arena_reset(&ctx()->temp, temp_mark);
+    os_free((u8 *)uvs);
     return result;
 }
 

@@ -261,6 +261,8 @@ u8 *os_alloc(i32 size) {
     return (u8 *)VirtualAlloc(NULL, (SIZE_T)size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 }
 
+void os_free(u8 *ptr) { VirtualFree(ptr, 0, MEM_RELEASE); }
+
 Arena arena_new(i32 cap, Arena *parent) {
     u8 *data = parent ? alloc(cap, parent) : os_alloc(cap);
     if (!data) return (Arena){0};

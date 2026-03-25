@@ -16,11 +16,9 @@ export Info game = {
 
 #define ENTITY_MAX 4
 
-typedef i32 eid;
-
 struct Data {
     // Level
-    ArenaSentinel level;
+    i32 level;
 
     // GUI
     col32 fg, bg, text_light, text_dark;
@@ -29,10 +27,10 @@ struct Data {
     col32 solid_tiles[4];
     v2i   tilemap_size;
     u8   *tilemap;
-    q32    tile_size;
+    q32   tile_size;
 
     // Entities
-    eid     *entities;
+    i32     *entities;
     i32      count, cap;
     m3      *e_transform;
     Mesh     e_mesh;
@@ -41,12 +39,12 @@ struct Data {
 
 export void init() {
     data->level      = arena_mark(&ctx()->perm);
-    string cube_data = file_read("./assets/cube.obj", &ctx()->temp);
-    Mesh   cube      = mesh_from_obj(&ctx()->perm, (char *)cube_data.text);
+    string cube_data = file_read("./assets/cube.obj", TEMP);
+    Mesh   cube      = mesh_from_obj(cube_data, PERM);
     *cam()           = (Camera){.pos = (v3){0, 0, Q32(3)}};
 
     *data = (Data){
-        .entities   = ALLOC_ARRAY(eid, ENTITY_MAX),
+        .entities   = ALLOC_ARRAY(i32, ENTITY_MAX),
         .count      = 0,
         .cap        = ENTITY_MAX,
         .e_mesh     = cube,
@@ -117,7 +115,7 @@ export void update(q32 dt) {
         draw_model(data->e_mesh, data->e_tex, data->e_transform[i]);
     }
 
-    draw_text(string_format(&ctx()->temp, "Memory used: %d KB", ctx()->perm.used / 1024), 10, 10,
+    draw_text(string_format(TEMP, "Memory used: %d KB", ctx()->perm.used / 1024), 10, 10,
               data->text_light);
 }
 
